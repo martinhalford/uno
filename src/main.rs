@@ -1,6 +1,6 @@
 use std::io::{self, Write};
-use uno::uno_game::card::{Card, CardType, Color};
-use uno::uno_game::game::{Direction, GameError, GameEvent, UnoGame};
+use uno::uno_game::card::Color;
+use uno::uno_game::game::{GameEvent, UnoGame};
 
 fn main() {
     println!("Welcome to Uno!");
@@ -60,20 +60,16 @@ fn main() {
                     Ok(event) => {
                         // Handle Wild and Wild Draw Four color choice
                         match &event {
-                            GameEvent::WildColorChosen { player_id, .. }
-                            | GameEvent::WildDrawFour { player_id, .. } => {
-                                let color = choose_color(); // Prompt the player to choose a color
-                                game.discard_pile.last_mut().unwrap().color = color; // Update the discard pile color
-                                handle_game_event(&event, &game); // Display the event message
+                            GameEvent::WildColorChosen { player_id: _, .. }
+                            | GameEvent::WildDrawFour { player_id: _, .. } => {
+                                let color = choose_color();
+                                game.discard_pile.last_mut().unwrap().color = color;
+                                handle_game_event(&event, &game);
                             }
-                            _ => handle_game_event(&event, &game), // Handle other events normally
+                            _ => handle_game_event(&event, &game),
                         }
 
-                        if let GameEvent::PlayerWins { player_id } = event {
-                            println!(
-                                "\nPlayer {} has won the game!",
-                                game.players[player_id].name
-                            );
+                        if let GameEvent::PlayerWins { player_id: _ } = event {
                             break; // End the game
                         }
                     }
