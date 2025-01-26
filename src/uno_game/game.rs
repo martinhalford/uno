@@ -23,13 +23,35 @@ pub enum GameError {
 
 #[derive(Debug)]
 pub enum GameEvent {
-    CardPlayed { player_id: usize, card: Card },
-    CardDrawn { player_id: usize, card: Card },
-    Skip { player_id: usize },
+    CardPlayed {
+        player_id: usize,
+        card: Card,
+    },
+    CardDrawn {
+        player_id: usize,
+        card: Card,
+    },
+    Skip {
+        player_id: usize,
+    },
     Reverse,
-    DrawTwo { player_id: usize, cards: Vec<Card> },
-    WildColorChosen { player_id: usize, color: Color },
-    PlayerWins { player_id: usize },
+    DrawTwo {
+        player_id: usize,
+        cards: Vec<Card>,
+    },
+    WildColorChosen {
+        player_id: usize,
+        color: Color,
+    },
+    WildDrawFour {
+        player_id: usize,
+        next_player_id: usize,
+        cards: Vec<Card>,
+        color: Color,
+    },
+    PlayerWins {
+        player_id: usize,
+    },
 }
 
 /// Represents the direction of play.
@@ -177,11 +199,11 @@ impl UnoGame {
         player_id: usize,
         card_index: usize,
     ) -> Result<GameEvent, GameError> {
-        #[cfg(debug_assertions)]
-        eprintln!(
-            "[DEBUG] Player {}'s hand before playing: {:?}",
-            self.players[player_id].name, self.players[player_id].hand
-        );
+        // #[cfg(debug_assertions)]
+        // eprintln!(
+        //     "[DEBUG] Player {}'s hand before playing: {:?}",
+        //     self.players[player_id].name, self.players[player_id].hand
+        // );
 
         // Check if the card index is valid
         if card_index >= self.players[player_id].hand.len() {
@@ -192,11 +214,11 @@ impl UnoGame {
         let card = self.players[player_id].hand.remove(card_index);
 
         // Debug output: Print the card being played
-        #[cfg(debug_assertions)]
-        eprintln!(
-            "[DEBUG] Player {} is playing: {:?}",
-            self.players[player_id].name, card
-        );
+        // #[cfg(debug_assertions)]
+        // eprintln!(
+        //     "[DEBUG] Player {} is playing: {:?}",
+        //     self.players[player_id].name, card
+        // );
 
         // Check if the card can be played
         let top_card = self.discard_pile.last().unwrap();
@@ -211,11 +233,11 @@ impl UnoGame {
         self.discard_pile.push(card.clone());
 
         // Debug output: Print the discard pile after playing the card
-        #[cfg(debug_assertions)]
-        eprintln!(
-            "[DEBUG] Discard pile after playing: {:?}",
-            self.discard_pile
-        );
+        // #[cfg(debug_assertions)]
+        // eprintln!(
+        //     "[DEBUG] Discard pile after playing: {:?}",
+        //     self.discard_pile
+        // );
 
         // Handle special cards
         let event = self.handle_special_card(player_id, &card)?;
@@ -246,6 +268,7 @@ impl UnoGame {
                 Ok(GameEvent::Reverse)
             }
             CardType::DrawTwo => {
+                // Force the next player to draw two cards
                 let next_player = (self.current_turn + 1) % self.players.len();
                 let mut cards = Vec::new();
                 for _ in 0..2 {
@@ -259,9 +282,27 @@ impl UnoGame {
                     cards,
                 })
             }
-            CardType::Wild | CardType::WildDrawFour => {
+            CardType::Wild => {
                 Ok(GameEvent::WildColorChosen {
                     player_id,
+                    color: card.color, // The color is chosen by the player in the CLI
+                })
+            }
+            CardType::WildDrawFour => {
+                // Force the next player to draw four cards
+                let next_player = (self.current_turn + 1) % self.players.len();
+                let mut cards = Vec::new();
+                for _ in 0..4 {
+                    if let Some(card) = self.deck.pop() {
+                        self.players[next_player].hand.push(card.clone());
+                        cards.push(card);
+                    }
+                }
+                // Allow the current player to choose a color
+                Ok(GameEvent::WildDrawFour {
+                    player_id,
+                    next_player_id: next_player,
+                    cards,
                     color: card.color, // The color is chosen by the player in the CLI
                 })
             }

@@ -58,16 +58,30 @@ fn main() {
 
                 match game.play_card(game.current_turn, index) {
                     Ok(event) => {
-                        handle_game_event(&event, &game);
+                        // Handle Wild and Wild Draw Four color choice
+                        match &event {
+                            GameEvent::WildColorChosen { player_id, .. }
+                            | GameEvent::WildDrawFour { player_id, .. } => {
+                                let color = choose_color(); // Prompt the player to choose a color
+                                game.discard_pile.last_mut().unwrap().color = color; // Update the discard pile color
+                                handle_game_event(&event, &game); // Display the event message
+                            }
+                            _ => handle_game_event(&event, &game), // Handle other events normally
+                        }
+
                         if let GameEvent::PlayerWins { player_id } = event {
                             println!(
                                 "\nPlayer {} has won the game!",
                                 game.players[player_id].name
                             );
-                            break;
+                            break; // End the game
                         }
                     }
-                    Err(e) => println!("Error: {:?}", e),
+                    Err(e) => {
+                        println!("Error: {:?}", e);
+                        println!("Please try again.");
+                        continue; // Repeat the turn
+                    }
                 }
             }
             "2" => {
@@ -89,14 +103,14 @@ fn main() {
 fn get_player_names() -> Vec<String> {
     let mut player_names = Vec::new();
     loop {
-        print!("Enter player name (or 'done' to finish): ");
+        print!("Enter player name (or '.' to finish): ");
         io::stdout().flush().unwrap();
 
         let mut name = String::new();
         io::stdin().read_line(&mut name).unwrap();
         let name = name.trim().to_string();
 
-        if name.to_lowercase() == "done" {
+        if name.to_lowercase() == "." {
             if player_names.len() < 2 {
                 println!("You need at least 2 players to start the game.");
                 continue;
@@ -147,8 +161,48 @@ fn handle_game_event(event: &GameEvent, game: &UnoGame) {
                 game.players[*player_id].name, color
             );
         }
+        GameEvent::WildDrawFour {
+            player_id,
+            next_player_id,
+            cards,
+            color,
+        } => {
+            println!(
+                "Player {} played Wild Draw Four! Player {} draws 4 cards: {:?}",
+                game.players[*player_id].name, game.players[*next_player_id].name, cards
+            );
+            println!(
+                "Player {} chose color {:?}",
+                game.players[*player_id].name, color
+            );
+        }
         GameEvent::PlayerWins { player_id } => {
             println!("Player {} has won the game!", game.players[*player_id].name);
+        }
+    }
+}
+
+/// Prompts the player to choose a color.
+fn choose_color() -> Color {
+    loop {
+        println!("Choose a color:");
+        println!("1. Red");
+        println!("2. Green");
+        println!("3. Blue");
+        println!("4. Yellow");
+        print!("Enter your choice: ");
+        io::stdout().flush().unwrap();
+
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice).unwrap();
+        let choice = choice.trim();
+
+        match choice {
+            "1" => return Color::Red,
+            "2" => return Color::Green,
+            "3" => return Color::Blue,
+            "4" => return Color::Yellow,
+            _ => println!("Invalid choice. Please enter 1, 2, 3, or 4."),
         }
     }
 }
