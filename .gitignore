@@ -1,1 +1,33 @@
-/target
+# Ink! build artifacts
+/target/
+!*/src/**/*.rs
+**/*.contract
+**/*.wasm
+
+# Debugging files
+*.log
+
+# Node modules for web-related Ink! dApps
+node_modules/
+
+# MacOS-specific files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Visual Studio Code specific files
+.vscode/
+.history
+
+# IDE specific files
+.idea/
+
+# Rust specific
+*.rs.bk
+Cargo.lock
+target/
+# backup
+*.bak
