@@ -3,22 +3,6 @@ use super::player::Player;
 use rand::seq::SliceRandom; // Import the shuffle functionality
 use rand::thread_rng; // For random number generation
 
-/// Represents the direction of play.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Direction {
-    Clockwise,
-    CounterClockwise,
-}
-
-impl Direction {
-    pub fn reverse(&self) -> Self {
-        match self {
-            Direction::Clockwise => Direction::CounterClockwise,
-            Direction::CounterClockwise => Direction::Clockwise,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct UnoGame {
     pub players: Vec<Player>,
@@ -35,6 +19,33 @@ pub enum GameError {
     GameAlreadyOver,
     EmptyDeck,
     Other(String),
+}
+
+#[derive(Debug)]
+pub enum GameEvent {
+    CardPlayed { player_id: usize, card: Card },
+    CardDrawn { player_id: usize, card: Card },
+    Skip { player_id: usize },
+    Reverse,
+    DrawTwo { player_id: usize, cards: Vec<Card> },
+    WildColorChosen { player_id: usize, color: Color },
+    PlayerWins { player_id: usize },
+}
+
+/// Represents the direction of play.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Direction {
+    Clockwise,
+    CounterClockwise,
+}
+
+impl Direction {
+    pub fn reverse(&self) -> Self {
+        match self {
+            Direction::Clockwise => Direction::CounterClockwise,
+            Direction::CounterClockwise => Direction::Clockwise,
+        }
+    }
 }
 
 impl UnoGame {
@@ -148,7 +159,109 @@ impl UnoGame {
         self.direction = self.direction.reverse();
     }
 
-    // Other methods like play_card, draw_card, etc.
+    /// Checks if a card can be played on top of another card.
+    pub fn can_play_card(card: &Card, top_card: &Card) -> bool {
+        card.color == top_card.color
+            || match card.card_type {
+                CardType::Number(n) => match top_card.card_type {
+                    CardType::Number(m) => n == m,
+                    _ => false,
+                },
+                _ => true, // Wild cards can always be played
+            }
+    }
+
+    /// Handles playing a card.
+    pub fn play_card(
+        &mut self,
+        player_id: usize,
+        card_index: usize,
+    ) -> Result<GameEvent, GameError> {
+        // Check if the card index is valid
+        if card_index >= self.players[player_id].hand.len() {
+            return Err(GameError::CardNotInHand);
+        }
+
+        // Remove the card from the player's hand
+        let card = self.players[player_id].hand.remove(card_index);
+
+        // Check if the card can be played
+        let top_card = self.discard_pile.last().unwrap();
+        if !UnoGame::can_play_card(&card, top_card) {
+            // If the card cannot be played, return it to the player's hand
+            self.players[player_id].hand.push(card);
+            return Err(GameError::InvalidMove);
+        }
+
+        // Add the card to the discard pile
+        self.discard_pile.push(card.clone());
+
+        // Handle special cards
+        let event = self.handle_special_card(player_id, &card)?;
+
+        // Check if the player has won
+        if self.players[player_id].hand.is_empty() {
+            return Ok(GameEvent::PlayerWins { player_id });
+        }
+
+        Ok(event)
+    }
+
+    /// Handles special card effects.
+    fn handle_special_card(
+        &mut self,
+        player_id: usize,
+        card: &Card,
+    ) -> Result<GameEvent, GameError> {
+        match card.card_type {
+            CardType::Skip => {
+                self.next_turn(); // Skip the next player
+                Ok(GameEvent::Skip {
+                    player_id: (self.current_turn + 1) % self.players.len(),
+                })
+            }
+            CardType::Reverse => {
+                self.reverse_direction();
+                Ok(GameEvent::Reverse)
+            }
+            CardType::DrawTwo => {
+                let next_player = (self.current_turn + 1) % self.players.len();
+                let mut cards = Vec::new();
+                for _ in 0..2 {
+                    if let Some(card) = self.deck.pop() {
+                        self.players[next_player].hand.push(card.clone());
+                        cards.push(card);
+                    }
+                }
+                Ok(GameEvent::DrawTwo {
+                    player_id: next_player,
+                    cards,
+                })
+            }
+            CardType::Wild | CardType::WildDrawFour => {
+                Ok(GameEvent::WildColorChosen {
+                    player_id,
+                    color: card.color, // The color is chosen by the player in the CLI
+                })
+            }
+            _ => Ok(GameEvent::CardPlayed {
+                player_id,
+                card: card.clone(),
+            }),
+        }
+    }
+
+    /// Handles drawing a card.
+    pub fn draw_card(&mut self, player_id: usize) -> Result<GameEvent, GameError> {
+        let player = &mut self.players[player_id];
+
+        if let Some(card) = self.deck.pop() {
+            player.hand.push(card.clone());
+            Ok(GameEvent::CardDrawn { player_id, card })
+        } else {
+            Err(GameError::EmptyDeck)
+        }
+    }
 }
 
 #[cfg(test)]

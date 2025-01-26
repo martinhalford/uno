@@ -1,10 +1,9 @@
 use std::io::{self, Write};
 use uno::uno_game::card::{Card, CardType, Color};
-use uno::uno_game::game::{Direction, GameError, UnoGame};
+use uno::uno_game::game::{Direction, GameError, GameEvent, UnoGame};
 
 fn main() {
-    // Welcome message
-    println!("Welcome to the UNO Game!");
+    println!("Welcome to Uno!");
 
     // Get player names
     let player_names = get_player_names();
@@ -41,8 +40,6 @@ fn main() {
         io::stdin().read_line(&mut choice).unwrap();
         let choice = choice.trim();
 
-        println!("Choice: {}", choice);
-
         match choice {
             "1" => {
                 // Play a card
@@ -59,13 +56,13 @@ fn main() {
                     }
                 };
 
-                match play_card(&mut game, index) {
-                    Ok(_) => {
-                        // Check if the player has won
-                        if game.players[game.current_turn].hand.is_empty() {
+                match game.play_card(game.current_turn, index) {
+                    Ok(event) => {
+                        handle_game_event(&event, &game);
+                        if let GameEvent::PlayerWins { player_id } = event {
                             println!(
                                 "\nPlayer {} has won the game!",
-                                game.players[game.current_turn].name
+                                game.players[player_id].name
                             );
                             break;
                         }
@@ -75,8 +72,8 @@ fn main() {
             }
             "2" => {
                 // Draw a card
-                match draw_card(&mut game) {
-                    Ok(_) => println!("You drew a card."),
+                match game.draw_card(game.current_turn) {
+                    Ok(event) => handle_game_event(&event, &game),
                     Err(e) => println!("Error: {:?}", e),
                 }
             }
@@ -123,112 +120,35 @@ fn display_game_state(game: &UnoGame) {
     println!("Deck Cards Remaining: {}", game.deck.len());
 }
 
-/// Handles playing a card.
-fn play_card(game: &mut UnoGame, index: usize) -> Result<(), GameError> {
-    let player = &mut game.players[game.current_turn];
-
-    // Check if the card index is valid
-    if index >= player.hand.len() {
-        return Err(GameError::CardNotInHand);
-    }
-
-    let card = player.hand[index].clone();
-
-    // Check if the card can be played
-    let top_card = game.discard_pile.last().unwrap();
-    if !can_play_card(&card, top_card) {
-        return Err(GameError::InvalidMove);
-    }
-
-    // Remove the card from the player's hand and add it to the discard pile
-    player.hand.remove(index);
-    game.discard_pile.push(card);
-
-    // Handle special cards
-    handle_special_card(game, &card);
-
-    Ok(())
-}
-
-fn can_play_card(card: &Card, top_card: &Card) -> bool {
-    card.color == top_card.color
-        || match card.card_type {
-            CardType::Number(n) => match top_card.card_type {
-                CardType::Number(m) => n == m,
-                _ => false,
-            },
-            _ => true, // Wild cards can always be played
+/// Handles game events and displays appropriate messages.
+fn handle_game_event(event: &GameEvent, game: &UnoGame) {
+    match event {
+        GameEvent::CardPlayed { player_id, card } => {
+            println!("Player {} played {:?}", game.players[*player_id].name, card);
         }
-}
-
-/// Handles special card effects.
-fn handle_special_card(game: &mut UnoGame, card: &Card) {
-    match card.card_type {
-        CardType::Skip => {
-            println!(
-                "Player {} is skipped!",
-                game.players[game.current_turn].name
-            );
-            game.next_turn(); // Skip the next player
+        GameEvent::CardDrawn { player_id, card } => {
+            println!("Player {} drew {:?}", game.players[*player_id].name, card);
         }
-        CardType::Reverse => {
+        GameEvent::Skip { player_id } => {
+            println!("Player {} is skipped!", game.players[*player_id].name);
+        }
+        GameEvent::Reverse => {
             println!("Direction reversed!");
-            game.reverse_direction();
         }
-        CardType::DrawTwo => {
-            println!("Next player draws 2 cards!");
-            let next_player = (game.current_turn + 1) % game.players.len();
-            for _ in 0..2 {
-                if let Some(card) = game.deck.pop() {
-                    game.players[next_player].hand.push(card);
-                }
-            }
-        }
-        CardType::Wild | CardType::WildDrawFour => {
+        GameEvent::DrawTwo { player_id, cards } => {
             println!(
-                "Player {} chooses a color!",
-                game.players[game.current_turn].name
+                "Player {} draws 2 cards: {:?}",
+                game.players[*player_id].name, cards
             );
-            let color = choose_color();
-            game.discard_pile.last_mut().unwrap().color = color;
         }
-        _ => {}
-    }
-}
-
-/// Prompts the player to choose a color for a Wild card.
-fn choose_color() -> Color {
-    loop {
-        println!("Choose a color:");
-        println!("1. Red");
-        println!("2. Green");
-        println!("3. Blue");
-        println!("4. Yellow");
-        print!("Enter your choice: ");
-        io::stdout().flush().unwrap();
-
-        let mut choice = String::new();
-        io::stdin().read_line(&mut choice).unwrap();
-        let choice = choice.trim();
-
-        match choice {
-            "1" => return Color::Red,
-            "2" => return Color::Green,
-            "3" => return Color::Blue,
-            "4" => return Color::Yellow,
-            _ => println!("Invalid choice. Please enter 1, 2, 3, or 4."),
+        GameEvent::WildColorChosen { player_id, color } => {
+            println!(
+                "Player {} chose color {:?}",
+                game.players[*player_id].name, color
+            );
         }
-    }
-}
-
-/// Handles drawing a card.
-fn draw_card(game: &mut UnoGame) -> Result<(), GameError> {
-    let player = &mut game.players[game.current_turn];
-
-    if let Some(card) = game.deck.pop() {
-        player.hand.push(card);
-        Ok(())
-    } else {
-        Err(GameError::EmptyDeck)
+        GameEvent::PlayerWins { player_id } => {
+            println!("Player {} has won the game!", game.players[*player_id].name);
+        }
     }
 }
