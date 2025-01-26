@@ -177,6 +177,12 @@ impl UnoGame {
         player_id: usize,
         card_index: usize,
     ) -> Result<GameEvent, GameError> {
+        #[cfg(debug_assertions)]
+        eprintln!(
+            "[DEBUG] Player {}'s hand before playing: {:?}",
+            self.players[player_id].name, self.players[player_id].hand
+        );
+
         // Check if the card index is valid
         if card_index >= self.players[player_id].hand.len() {
             return Err(GameError::CardNotInHand);
@@ -185,8 +191,16 @@ impl UnoGame {
         // Remove the card from the player's hand
         let card = self.players[player_id].hand.remove(card_index);
 
+        // Debug output: Print the card being played
+        #[cfg(debug_assertions)]
+        eprintln!(
+            "[DEBUG] Player {} is playing: {:?}",
+            self.players[player_id].name, card
+        );
+
         // Check if the card can be played
         let top_card = self.discard_pile.last().unwrap();
+
         if !UnoGame::can_play_card(&card, top_card) {
             // If the card cannot be played, return it to the player's hand
             self.players[player_id].hand.push(card);
@@ -195,6 +209,13 @@ impl UnoGame {
 
         // Add the card to the discard pile
         self.discard_pile.push(card.clone());
+
+        // Debug output: Print the discard pile after playing the card
+        #[cfg(debug_assertions)]
+        eprintln!(
+            "[DEBUG] Discard pile after playing: {:?}",
+            self.discard_pile
+        );
 
         // Handle special cards
         let event = self.handle_special_card(player_id, &card)?;
