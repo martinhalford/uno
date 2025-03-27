@@ -1,6 +1,7 @@
 use super::card::{Card, CardType, Color};
 use super::player::Player;
 use rand::seq::SliceRandom; // Import the shuffle functionality
+#[allow(deprecated)]
 use rand::thread_rng; // For random number generation
 
 #[derive(Debug, PartialEq)]
