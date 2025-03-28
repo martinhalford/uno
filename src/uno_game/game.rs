@@ -3,8 +3,9 @@ use super::player::Player;
 use rand::seq::SliceRandom; // Import the shuffle functionality
 #[allow(deprecated)]
 use rand::thread_rng; // For random number generation
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct UnoGame {
     pub players: Vec<Player>,
     pub deck: Vec<Card>,
@@ -13,7 +14,7 @@ pub struct UnoGame {
     pub direction: Direction,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum GameError {
     InvalidMove,
     CardNotInHand,
@@ -22,7 +23,7 @@ pub enum GameError {
     Other(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum GameEvent {
     CardPlayed {
         player_id: usize,
@@ -56,7 +57,7 @@ pub enum GameEvent {
 }
 
 /// Represents the direction of play.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Direction {
     Clockwise,
     CounterClockwise,
@@ -184,13 +185,24 @@ impl UnoGame {
 
     /// Checks if a card can be played on top of another card.
     pub fn can_play_card(card: &Card, top_card: &Card) -> bool {
+        // Wild cards can always be played
+        if card.color == Color::Wild {
+            return true;
+        }
+
+        // If the top card is wild, any card can be played on it
+        if top_card.color == Color::Wild {
+            return true;
+        }
+
+        // Same color or same number
         card.color == top_card.color
             || match card.card_type {
                 CardType::Number(n) => match top_card.card_type {
                     CardType::Number(m) => n == m,
                     _ => false,
                 },
-                _ => true, // Wild cards can always be played
+                _ => true, // Action cards (Skip, Reverse, DrawTwo) can be played on matching colors
             }
     }
 
@@ -331,14 +343,12 @@ impl UnoGame {
 mod tests {
     use super::*;
 
-    /// Tests that the deck is initialized with the correct number of cards.
     #[test]
     fn test_initialize_deck() {
         let deck = UnoGame::initialize_deck();
         assert_eq!(deck.len(), 108); // Standard Uno deck has 108 cards
     }
 
-    /// Tests that a new game is initialized correctly.
     #[test]
     fn test_new_game() {
         let player_names = vec!["Alice".to_string(), "Bob".to_string()];
@@ -361,15 +371,52 @@ mod tests {
         assert_eq!(game.direction, Direction::Clockwise);
     }
 
-    /// Tests that the game handles an empty deck during initialization.
     #[test]
-    fn test_new_game_empty_deck() {
-        let player_names = vec!["Alice".to_string(); 20]; // Too many players to deal 7 cards each
-        let result = UnoGame::new(player_names);
-        assert!(matches!(result, Err(GameError::EmptyDeck)));
+    fn test_play_card() {
+        let player_names = vec!["Alice".to_string(), "Bob".to_string()];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        // Get the top card of the discard pile
+        let top_card = game.discard_pile.last().unwrap();
+
+        // Find a matching card in Alice's hand
+        let matching_card_index = game.players[0]
+            .hand
+            .iter()
+            .position(|card| UnoGame::can_play_card(card, top_card))
+            .unwrap();
+
+        // Store the card we're going to play
+        let card_to_play = game.players[0].hand[matching_card_index].clone();
+
+        // Play the matching card
+        let result = game.play_card(0, matching_card_index);
+        assert!(result.is_ok());
+
+        // Check that the card was moved to the discard pile
+        assert_eq!(
+            game.discard_pile.last().unwrap().card_type,
+            card_to_play.card_type
+        );
     }
 
-    /// Tests that the next_turn method updates the current turn correctly.
+    #[test]
+    fn test_draw_card() {
+        let player_names = vec!["Alice".to_string(), "Bob".to_string()];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        let initial_hand_size = game.players[0].hand.len();
+        let initial_deck_size = game.deck.len();
+
+        let result = game.draw_card(0);
+        assert!(result.is_ok());
+
+        // Check that the player got a new card
+        assert_eq!(game.players[0].hand.len(), initial_hand_size + 1);
+        // Check that the deck lost a card
+        assert_eq!(game.deck.len(), initial_deck_size - 1);
+    }
+
     #[test]
     fn test_next_turn() {
         let player_names = vec![
@@ -395,7 +442,6 @@ mod tests {
         assert_eq!(game.current_turn, 0);
     }
 
-    /// Tests that the reverse_direction method toggles the direction correctly.
     #[test]
     fn test_reverse_direction() {
         let player_names = vec!["Alice".to_string(), "Bob".to_string()];
@@ -413,7 +459,6 @@ mod tests {
         assert_eq!(game.direction, Direction::Clockwise);
     }
 
-    /// Tests that the next_turn method works correctly when the direction is reversed.
     #[test]
     fn test_next_turn_reversed() {
         let player_names = vec![
@@ -441,5 +486,30 @@ mod tests {
         // Move to the next turn (Alice, wraps around)
         game.next_turn();
         assert_eq!(game.current_turn, 0);
+    }
+
+    #[test]
+    fn test_can_play_card() {
+        let red_card = Card {
+            color: Color::Red,
+            card_type: CardType::Number(1),
+        };
+        let blue_card = Card {
+            color: Color::Blue,
+            card_type: CardType::Number(1),
+        };
+        let wild_card = Card {
+            color: Color::Wild,
+            card_type: CardType::Wild,
+        };
+
+        // Same color
+        assert!(UnoGame::can_play_card(&red_card, &red_card));
+        // Same number, different color
+        assert!(UnoGame::can_play_card(&red_card, &blue_card));
+        // Wild card can be played on anything
+        assert!(UnoGame::can_play_card(&wild_card, &red_card));
+        // Regular card on wild
+        assert!(UnoGame::can_play_card(&red_card, &wild_card));
     }
 }

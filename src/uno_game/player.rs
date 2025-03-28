@@ -1,7 +1,8 @@
 use super::card::Card;
 use super::game::GameError;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Player {
     pub id: usize,
     pub name: String,

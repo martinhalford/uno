@@ -1,0 +1,610 @@
+{
+  "id": "cecd8410-79dd-455f-8825-c0e8ec6d2661",
+  "game": {
+    "players": [
+      {
+        "id": 0,
+        "name": "Genevieve",
+        "hand": [
+          {
+            "color": "Yellow",
+            "card_type": {
+              "Number": 9
+            }
+          },
+          {
+            "color": "Yellow",
+            "card_type": "Reverse"
+          },
+          {
+            "color": "Red",
+            "card_type": "Reverse"
+          },
+          {
+            "color": "Red",
+            "card_type": {
+              "Number": 9
+            }
+          },
+          {
+            "color": "Blue",
+            "card_type": {
+              "Number": 7
+            }
+          },
+          {
+            "color": "Blue",
+            "card_type": {
+              "Number": 4
+            }
+          },
+          {
+            "color": "Blue",
+            "card_type": {
+              "Number": 3
+            }
+          }
+        ]
+      },
+      {
+        "id": 1,
+        "name": "Siobhan",
+        "hand": [
+          {
+            "color": "Yellow",
+            "card_type": {
+              "Number": 7
+            }
+          },
+          {
+            "color": "Blue",
+            "card_type": {
+              "Number": 5
+            }
+          },
+          {
+            "color": "Green",
+            "card_type": {
+              "Number": 2
+            }
+          },
+          {
+            "color": "Blue",
+            "card_type": {
+              "Number": 9
+            }
+          },
+          {
+            "color": "Green",
+            "card_type": {
+              "Number": 5
+            }
+          },
+          {
+            "color": "Red",
+            "card_type": {
+              "Number": 7
+            }
+          },
+          {
+            "color": "Red",
+            "card_type": "Skip"
+          }
+        ]
+      }
+    ],
+    "deck": [
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 1
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 5
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": "DrawTwo"
+      },
+      {
+        "color": "Blue",
+        "card_type": "DrawTwo"
+      },
+      {
+        "color": "Green",
+        "card_type": "Reverse"
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 2
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 4
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 8
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 4
+        }
+      },
+      {
+        "color": "Wild",
+        "card_type": "Wild"
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 6
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": "DrawTwo"
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 7
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": "Reverse"
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 3
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 1
+        }
+      },
+      {
+        "color": "Wild",
+        "card_type": "WildDrawFour"
+      },
+      {
+        "color": "Green",
+        "card_type": "Reverse"
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 1
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 2
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": "Skip"
+      },
+      {
+        "color": "Yellow",
+        "card_type": "Skip"
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 6
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 5
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 3
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 1
+        }
+      },
+      {
+        "color": "Wild",
+        "card_type": "Wild"
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 4
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 2
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 3
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 5
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 8
+        }
+      },
+      {
+        "color": "Wild",
+        "card_type": "Wild"
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 3
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 8
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 4
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 0
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 5
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 9
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": "Skip"
+      },
+      {
+        "color": "Wild",
+        "card_type": "WildDrawFour"
+      },
+      {
+        "color": "Yellow",
+        "card_type": "Skip"
+      },
+      {
+        "color": "Blue",
+        "card_type": "DrawTwo"
+      },
+      {
+        "color": "Red",
+        "card_type": "Reverse"
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 2
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 1
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": "DrawTwo"
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 4
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 6
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 8
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 0
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 9
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 2
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 6
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 3
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 1
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 1
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 9
+        }
+      },
+      {
+        "color": "Wild",
+        "card_type": "WildDrawFour"
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 9
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 8
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 0
+        }
+      },
+      {
+        "color": "Wild",
+        "card_type": "Wild"
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 8
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 6
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": "Skip"
+      },
+      {
+        "color": "Green",
+        "card_type": "Skip"
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 6
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": "Reverse"
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 6
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": "Reverse"
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 7
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 5
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 3
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 1
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 7
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 5
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 2
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 0
+        }
+      },
+      {
+        "color": "Wild",
+        "card_type": "WildDrawFour"
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 6
+        }
+      },
+      {
+        "color": "Green",
+        "card_type": {
+          "Number": 4
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 8
+        }
+      },
+      {
+        "color": "Yellow",
+        "card_type": "DrawTwo"
+      },
+      {
+        "color": "Green",
+        "card_type": "Skip"
+      },
+      {
+        "color": "Green",
+        "card_type": "DrawTwo"
+      },
+      {
+        "color": "Green",
+        "card_type": "DrawTwo"
+      },
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 4
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 7
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 3
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 8
+        }
+      },
+      {
+        "color": "Blue",
+        "card_type": {
+          "Number": 7
+        }
+      },
+      {
+        "color": "Red",
+        "card_type": {
+          "Number": 9
+        }
+      }
+    ],
+    "discard_pile": [
+      {
+        "color": "Yellow",
+        "card_type": {
+          "Number": 2
+        }
+      }
+    ],
+    "current_turn": 0,
+    "direction": "Clockwise"
+  },
+  "last_updated": "2025-03-28T17:46:54.724308Z"
+}

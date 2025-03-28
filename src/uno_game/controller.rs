@@ -8,10 +8,10 @@ pub struct GameController {
 
 impl GameController {
     pub fn new() -> Self {
-        let ui = ConsoleUI::new();
+        let mut ui = ConsoleUI::new();
         let player_names = ui.get_player_names();
-        let game = UnoGame::new(player_names).expect("Failed to start game");
-        GameController { game, ui }
+        let game = UnoGame::new(player_names).unwrap();
+        Self { game, ui }
     }
 
     pub fn run(&mut self) {
