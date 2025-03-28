@@ -3,8 +3,9 @@ use super::player::Player;
 use rand::seq::SliceRandom; // Import the shuffle functionality
 #[allow(deprecated)]
 use rand::thread_rng; // For random number generation
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct UnoGame {
     pub players: Vec<Player>,
     pub deck: Vec<Card>,
@@ -13,7 +14,7 @@ pub struct UnoGame {
     pub direction: Direction,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum GameError {
     InvalidMove,
     CardNotInHand,
@@ -22,7 +23,7 @@ pub enum GameError {
     Other(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum GameEvent {
     CardPlayed {
         player_id: usize,
@@ -56,7 +57,7 @@ pub enum GameEvent {
 }
 
 /// Represents the direction of play.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Direction {
     Clockwise,
     CounterClockwise,
