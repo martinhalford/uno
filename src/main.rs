@@ -7,7 +7,7 @@ fn main() {
     let sessions_dir = PathBuf::from("sessions");
     let session_manager =
         SessionManager::new(sessions_dir).expect("Failed to create session manager");
-    let ui = ConsoleUI::new();
+    let mut ui = ConsoleUI::new();
 
     loop {
         println!("\nUno Game Session Manager");
@@ -57,7 +57,7 @@ fn main() {
                 match session_manager.load_session(id) {
                     Ok(mut session) => {
                         println!("Loaded game session: {}", session.id);
-                        play_turn(&mut session, &session_manager, &ui);
+                        play_turn(&mut session, &session_manager, &mut ui);
                     }
                     Err(e) => println!("Failed to load session: {}", e),
                 }
@@ -80,7 +80,7 @@ fn main() {
     }
 }
 
-fn play_turn(session: &mut GameSession, manager: &SessionManager, ui: &ConsoleUI) {
+fn play_turn(session: &mut GameSession, manager: &SessionManager, ui: &mut ConsoleUI) {
     println!(
         "\n=== Current Turn: Player {} ===",
         session.game.current_turn

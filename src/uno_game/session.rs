@@ -73,3 +73,75 @@ impl SessionManager {
         fs::remove_file(session_path)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn create_test_session_manager() -> (SessionManager, tempfile::TempDir) {
+        let temp_dir = tempdir().unwrap();
+        let manager = SessionManager::new(temp_dir.path().to_path_buf()).unwrap();
+        (manager, temp_dir)
+    }
+
+    #[test]
+    fn test_create_and_load_session() {
+        let (manager, _temp_dir) = create_test_session_manager();
+        let player_names = vec!["Alice".to_string(), "Bob".to_string()];
+        let game = UnoGame::new(player_names).unwrap();
+
+        let session = manager.create_session(game).unwrap();
+        assert!(!session.id.is_empty());
+
+        let loaded = manager.load_session(&session.id).unwrap();
+        assert_eq!(loaded.id, session.id);
+        assert_eq!(loaded.game.players.len(), 2);
+    }
+
+    #[test]
+    fn test_list_sessions() {
+        let (manager, _temp_dir) = create_test_session_manager();
+        let player_names = vec!["Alice".to_string(), "Bob".to_string()];
+        let game = UnoGame::new(player_names).unwrap();
+
+        let session1 = manager.create_session(game).unwrap();
+        let session2 = manager
+            .create_session(UnoGame::new(vec!["Charlie".to_string(), "David".to_string()]).unwrap())
+            .unwrap();
+
+        let sessions = manager.list_sessions().unwrap();
+        assert_eq!(sessions.len(), 2);
+        assert!(sessions.contains(&session1.id));
+        assert!(sessions.contains(&session2.id));
+    }
+
+    #[test]
+    fn test_delete_session() {
+        let (manager, _temp_dir) = create_test_session_manager();
+        let player_names = vec!["Alice".to_string(), "Bob".to_string()];
+        let game = UnoGame::new(player_names).unwrap();
+
+        let session = manager.create_session(game).unwrap();
+        assert!(manager.delete_session(&session.id).is_ok());
+
+        let sessions = manager.list_sessions().unwrap();
+        assert!(!sessions.contains(&session.id));
+    }
+
+    #[test]
+    fn test_session_persistence() {
+        let (manager, _temp_dir) = create_test_session_manager();
+        let player_names = vec!["Alice".to_string(), "Bob".to_string()];
+        let game = UnoGame::new(player_names).unwrap();
+
+        let session = manager.create_session(game).unwrap();
+        let session_path = manager.sessions_dir.join(format!("{}.json", session.id));
+
+        assert!(session_path.exists());
+        let contents = fs::read_to_string(session_path).unwrap();
+        assert!(contents.contains("Alice"));
+        assert!(contents.contains("Bob"));
+    }
+}
