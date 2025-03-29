@@ -119,13 +119,17 @@ fn play_turn(session: &mut GameSession, manager: &SessionManager, ui: &mut Conso
     let choice = ui.get_player_action();
     let event = match choice.as_str() {
         "1" => {
-            let index = match ui.get_card_index() {
-                Ok(index) => index,
+            let (index, color) = match ui.get_card_play(&player.hand[0]) {
+                Ok(result) => result,
                 Err(e) => {
                     println!("{}", e);
                     return;
                 }
             };
+
+            if let Some(color) = color {
+                session.game.players[session.game.current_turn].hand[index].color = color;
+            }
 
             match session.game.play_card(session.game.current_turn, index) {
                 Ok(event) => event,
@@ -148,15 +152,7 @@ fn play_turn(session: &mut GameSession, manager: &SessionManager, ui: &mut Conso
         }
     };
 
-    match &event {
-        GameEvent::WildColorChosen { player_id: _, .. }
-        | GameEvent::WildDrawFour { player_id: _, .. } => {
-            let color = ui.choose_color();
-            session.game.discard_pile.last_mut().unwrap().color = color;
-            ui.handle_game_event(&event, &session.game);
-        }
-        _ => ui.handle_game_event(&event, &session.game),
-    }
+    ui.handle_game_event(&event, &session.game);
 
     if let GameEvent::PlayerWins { player_id: _ } = event {
         println!("Game Over! Player {} wins!", player_name);

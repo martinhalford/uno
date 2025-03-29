@@ -32,7 +32,10 @@ impl GameController {
                 "1" => {
                     // Play a card
                     match self.ui.get_card_index() {
-                        Ok(index) => {
+                        Ok((index, color)) => {
+                            if let Some(color) = color {
+                                self.game.players[self.game.current_turn].hand[index].color = color;
+                            }
                             match self.game.play_card(self.game.current_turn, index) {
                                 Ok(event) => {
                                     // Handle Wild and Wild Draw Four color choice

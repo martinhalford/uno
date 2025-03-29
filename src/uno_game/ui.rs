@@ -1,4 +1,4 @@
-use super::card::{Card, Color};
+use super::card::{Card, CardType, Color};
 use super::game::{GameEvent, UnoGame};
 use std::io::{self, BufRead, BufReader, Write};
 
@@ -87,7 +87,7 @@ impl ConsoleUI {
         choice.trim().to_string()
     }
 
-    pub fn get_card_index(&mut self) -> Result<usize, String> {
+    pub fn get_card_index(&mut self) -> Result<(usize, Option<Color>), String> {
         write!(
             self.output,
             "Enter the index of the card you want to play: "
@@ -97,10 +97,36 @@ impl ConsoleUI {
 
         let mut index = String::new();
         self.input.read_line(&mut index).unwrap();
-        index
+        let index = index
             .trim()
             .parse::<usize>()
-            .map_err(|_| "Invalid input. Please enter a number.".to_string())
+            .map_err(|_| "Invalid input. Please enter a number.".to_string())?;
+
+        Ok((index, None))
+    }
+
+    pub fn get_card_play(&mut self, card: &Card) -> Result<(usize, Option<Color>), String> {
+        write!(
+            self.output,
+            "Enter the index of the card you want to play: "
+        )
+        .unwrap();
+        self.output.flush().unwrap();
+
+        let mut index = String::new();
+        self.input.read_line(&mut index).unwrap();
+        let index = index
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| "Invalid input. Please enter a number.".to_string())?;
+
+        // If the card is a Wild or Wild Draw Four, get the color choice
+        if matches!(card.card_type, CardType::Wild | CardType::WildDrawFour) {
+            let color = self.choose_color();
+            Ok((index, Some(color)))
+        } else {
+            Ok((index, None))
+        }
     }
 
     pub fn choose_color(&mut self) -> Color {
