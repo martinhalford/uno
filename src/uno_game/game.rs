@@ -214,7 +214,8 @@ impl UnoGame {
                     CardType::Number(m) => n == m,
                     _ => false,
                 },
-                _ => true, // Action cards (Skip, Reverse, DrawTwo) can be played on matching colors
+                // Action cards (Skip, Reverse, DrawTwo) can only be played on matching colors
+                _ => false,
             }
     }
 
