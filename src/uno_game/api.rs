@@ -76,6 +76,11 @@ pub struct PlayerStateResponse {
     hand: Vec<(usize, CardResponse)>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct DeckResponse {
+    cards: Vec<CardResponse>,
+}
+
 pub async fn create_game(
     State(state): State<AppState>,
     Json(req): Json<CreateGameRequest>,
@@ -138,6 +143,28 @@ pub async fn get_game_state(
         Ok(session) => {
             info!("Found game state: {}", id);
             let response = GameStateResponse::from_session(&session);
+            Json(response).into_response()
+        }
+        Err(e) => {
+            info!("Game not found: {}", id);
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
+    }
+}
+
+pub async fn get_deck(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    info!("Getting deck for game ID: {}", id);
+    match state.session_manager.load_session(&id) {
+        Ok(session) => {
+            info!("Found game deck: {}", id);
+            let response = DeckResponse {
+                cards: session
+                    .game
+                    .deck
+                    .iter()
+                    .map(CardResponse::from_card)
+                    .collect(),
+            };
             Json(response).into_response()
         }
         Err(e) => {
@@ -346,6 +373,7 @@ pub async fn start_api_server(sessions_dir: PathBuf) -> Result<(), Box<dyn std::
         .route("/games", get(list_games))
         .route("/games/{id}", get(get_game))
         .route("/games/{id}/state", get(get_game_state))
+        .route("/games/{id}/deck", get(get_deck))
         .route("/games/{id}", delete(delete_game))
         .route("/games/{id}/play", post(play_card))
         .route("/games/{id}/draw", post(draw_card))
@@ -388,6 +416,7 @@ mod tests {
             .route("/games", get(list_games))
             .route("/games/{id}", get(get_game))
             .route("/games/{id}/state", get(get_game_state))
+            .route("/games/{id}/deck", get(get_deck))
             .route("/games/{id}", delete(delete_game))
             .route("/games/{id}/play", post(play_card))
             .route("/games/{id}/draw", post(draw_card))
@@ -818,5 +847,56 @@ mod tests {
         assert!(!game_state.discard_pile_top.card_type.is_empty());
 
         assert!(game_state.deck_cards_remaining > 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_deck() {
+        let (app, _temp_dir) = setup_test_app().await;
+
+        // First create a game
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/games")
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                json!({
+                    "player_names": ["Alice", "Bob"]
+                })
+                .to_string(),
+            ))
+            .unwrap();
+
+        let create_response = app.clone().oneshot(create_request).await.unwrap();
+        let body = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let game: GameResponse = serde_json::from_slice(&body).unwrap();
+
+        // Then get the deck
+        let get_request = Request::builder()
+            .method("GET")
+            .uri(format!("/games/{}/deck", game.id))
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(get_request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let deck: DeckResponse = serde_json::from_slice(&body).unwrap();
+
+        // Verify the deck
+        assert!(!deck.cards.is_empty(), "Deck should not be empty");
+        assert_eq!(
+            deck.cards.len(),
+            game.deck_cards_remaining,
+            "Deck size should match deck_cards_remaining"
+        );
+
+        // Verify each card has valid properties
+        for card in deck.cards {
+            assert!(!card.color.is_empty(), "Card color should not be empty");
+            assert!(!card.card_type.is_empty(), "Card type should not be empty");
+        }
     }
 }
