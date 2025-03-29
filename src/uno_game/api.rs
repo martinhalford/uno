@@ -393,7 +393,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_play_card() {
-        let (app, _temp_dir) = setup_test_app().await;
+        let (app, temp_dir) = setup_test_app().await;
+
+        // Clean up any existing game state
+        let session_manager = SessionManager::new(temp_dir.path().to_path_buf()).unwrap();
+        if let Ok(sessions) = session_manager.list_sessions() {
+            for id in sessions {
+                let _ = session_manager.delete_session(&id);
+            }
+        }
 
         // First create a game
         let create_request = Request::builder()
@@ -414,17 +422,42 @@ mod tests {
             .unwrap();
         let game: GameResponse = serde_json::from_slice(&body).unwrap();
 
-        // Draw a card first to ensure we have a valid card to play
-        let draw_request = Request::builder()
-            .method("POST")
-            .uri(format!("/games/{}/draw", game.id))
+        // Get the initial game state
+        let get_request = Request::builder()
+            .method("GET")
+            .uri(format!("/games/{}", game.id))
             .body(Body::empty())
             .unwrap();
 
-        let response = app.clone().oneshot(draw_request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        let response = app.clone().oneshot(get_request).await.unwrap();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let game_state: GameResponse = serde_json::from_slice(&body).unwrap();
 
-        // Now try to play the card we just drew
+        // Verify that the current player has cards
+        assert!(
+            game_state.players[game_state.current_turn].hand_size > 0,
+            "Current player should have cards"
+        );
+
+        // If the top card is a Wild Draw Four, we need to choose a color first
+        if game_state.discard_pile_top.card_type == "WildDrawFour" {
+            let color_request = Request::builder()
+                .method("POST")
+                .uri(format!("/games/{}/color", game.id))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "color": "red"
+                    })
+                    .to_string(),
+                ))
+                .unwrap();
+
+            let response = app.clone().oneshot(color_request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+
+        // Try to play a card
         let play_request = Request::builder()
             .method("POST")
             .uri(format!("/games/{}/play", game.id))
