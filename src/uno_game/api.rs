@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use log::{error, info};
@@ -96,12 +96,17 @@ pub async fn list_games(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 pub async fn get_game(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    info!("Getting game with ID: {}", id);
     match state.session_manager.load_session(&id) {
         Ok(session) => {
+            info!("Found game: {}", id);
             let response = GameResponse::from_session(&session);
             Json(response).into_response()
         }
-        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+        Err(e) => {
+            info!("Game not found: {}", id);
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
     }
 }
 
@@ -109,9 +114,16 @@ pub async fn delete_game(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
+    info!("Deleting game with ID: {}", id);
     match state.session_manager.delete_session(&id) {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+        Ok(_) => {
+            info!("Successfully deleted game: {}", id);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => {
+            info!("Failed to delete game: {} - {}", id, e);
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
     }
 }
 
@@ -120,6 +132,7 @@ pub async fn play_card(
     Path(id): Path<String>,
     Json(req): Json<PlayCardRequest>,
 ) -> impl IntoResponse {
+    info!("Playing card at index {} in game: {}", req.card_index, id);
     match state.session_manager.load_session(&id) {
         Ok(mut session) => {
             match session
@@ -127,32 +140,49 @@ pub async fn play_card(
                 .play_card(session.game.current_turn, req.card_index)
             {
                 Ok(event) => {
+                    info!("Successfully played card in game: {}", id);
                     session.game.next_turn();
                     if let Err(e) = session.save(&state.session_manager.sessions_dir) {
+                        error!("Failed to save game state: {}", e);
                         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
                     }
                     Json(event).into_response()
                 }
-                Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+                Err(e) => {
+                    info!("Failed to play card in game: {} - {}", id, e);
+                    (StatusCode::BAD_REQUEST, e.to_string()).into_response()
+                }
             }
         }
-        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+        Err(e) => {
+            info!("Game not found: {}", id);
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
     }
 }
 
 pub async fn draw_card(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    info!("Drawing card in game: {}", id);
     match state.session_manager.load_session(&id) {
         Ok(mut session) => match session.game.draw_card(session.game.current_turn) {
             Ok(event) => {
+                info!("Successfully drew card in game: {}", id);
                 session.game.next_turn();
                 if let Err(e) = session.save(&state.session_manager.sessions_dir) {
+                    error!("Failed to save game state: {}", e);
                     return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
                 }
                 Json(event).into_response()
             }
-            Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+            Err(e) => {
+                info!("Failed to draw card in game: {} - {}", id, e);
+                (StatusCode::BAD_REQUEST, e.to_string()).into_response()
+            }
         },
-        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+        Err(e) => {
+            info!("Game not found: {}", id);
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
     }
 }
 
@@ -161,13 +191,17 @@ pub async fn choose_color(
     Path(id): Path<String>,
     Json(req): Json<ChooseColorRequest>,
 ) -> impl IntoResponse {
+    info!("Choosing color {} in game: {}", req.color, id);
     // Validate color first
     let color = match req.color.to_lowercase().as_str() {
         "red" => Color::Red,
         "green" => Color::Green,
         "blue" => Color::Blue,
         "yellow" => Color::Yellow,
-        _ => return (StatusCode::BAD_REQUEST, "Invalid color".to_string()).into_response(),
+        _ => {
+            info!("Invalid color {} in game: {}", req.color, id);
+            return (StatusCode::BAD_REQUEST, "Invalid color".to_string()).into_response();
+        }
     };
 
     match state.session_manager.load_session(&id) {
@@ -175,10 +209,13 @@ pub async fn choose_color(
             if let Some(top_card) = session.game.discard_pile.last_mut() {
                 top_card.color = color;
                 if let Err(e) = session.save(&state.session_manager.sessions_dir) {
+                    error!("Failed to save game state: {}", e);
                     return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
                 }
+                info!("Successfully chose color in game: {}", id);
                 StatusCode::OK.into_response()
             } else {
+                info!("No card in discard pile for game: {}", id);
                 (
                     StatusCode::BAD_REQUEST,
                     "No card in discard pile".to_string(),
@@ -186,7 +223,10 @@ pub async fn choose_color(
                     .into_response()
             }
         }
-        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+        Err(e) => {
+            info!("Game not found: {}", id);
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
     }
 }
 
@@ -239,7 +279,7 @@ pub async fn start_api_server(sessions_dir: PathBuf) -> Result<(), Box<dyn std::
         .route("/games", post(create_game))
         .route("/games", get(list_games))
         .route("/games/{id}", get(get_game))
-        .route("/games/{id}", post(delete_game))
+        .route("/games/{id}", delete(delete_game))
         .route("/games/{id}/play", post(play_card))
         .route("/games/{id}/draw", post(draw_card))
         .route("/games/{id}/color", post(choose_color))
@@ -280,7 +320,7 @@ mod tests {
             .route("/games", post(create_game))
             .route("/games", get(list_games))
             .route("/games/{id}", get(get_game))
-            .route("/games/{id}", post(delete_game))
+            .route("/games/{id}", delete(delete_game))
             .route("/games/{id}/play", post(play_card))
             .route("/games/{id}/draw", post(draw_card))
             .route("/games/{id}/color", post(choose_color))
@@ -457,21 +497,57 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK);
         }
 
-        // Try to play a card
-        let play_request = Request::builder()
-            .method("POST")
-            .uri(format!("/games/{}/play", game.id))
-            .header("Content-Type", "application/json")
-            .body(Body::from(
-                json!({
-                    "card_index": 0
-                })
-                .to_string(),
-            ))
-            .unwrap();
+        // Draw cards until we have a playable card
+        let mut attempts = 0;
+        let max_attempts = 5; // Limit the number of attempts to avoid infinite loops
+        while attempts < max_attempts {
+            // Draw a card
+            let draw_request = Request::builder()
+                .method("POST")
+                .uri(format!("/games/{}/draw", game.id))
+                .body(Body::empty())
+                .unwrap();
 
-        let response = app.oneshot(play_request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+            let response = app.clone().oneshot(draw_request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+
+            // Get the current game state
+            let get_request = Request::builder()
+                .method("GET")
+                .uri(format!("/games/{}", game.id))
+                .body(Body::empty())
+                .unwrap();
+
+            let response = app.clone().oneshot(get_request).await.unwrap();
+            let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            let game_state: GameResponse = serde_json::from_slice(&body).unwrap();
+
+            // Try to play the last card we drew
+            let play_request = Request::builder()
+                .method("POST")
+                .uri(format!("/games/{}/play", game.id))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "card_index": game_state.players[game_state.current_turn].hand_size - 1
+                    })
+                    .to_string(),
+                ))
+                .unwrap();
+
+            let response = app.clone().oneshot(play_request).await.unwrap();
+            if response.status() == StatusCode::OK {
+                // Successfully played a card
+                return;
+            }
+
+            attempts += 1;
+        }
+
+        panic!(
+            "Failed to find a playable card after {} attempts",
+            max_attempts
+        );
     }
 
     #[tokio::test]
@@ -573,7 +649,7 @@ mod tests {
 
         // Then delete the game
         let delete_request = Request::builder()
-            .method("POST")
+            .method("DELETE")
             .uri(format!("/games/{}", game.id))
             .body(Body::empty())
             .unwrap();
