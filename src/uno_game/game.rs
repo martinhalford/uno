@@ -198,7 +198,9 @@ impl UnoGame {
     /// Checks if a card can be played on top of another card.
     pub fn can_play_card(card: &Card, top_card: &Card) -> bool {
         // Wild cards can always be played
-        if card.color == Color::Wild {
+        if card.color == Color::Wild
+            || matches!(card.card_type, CardType::Wild | CardType::WildDrawFour)
+        {
             return true;
         }
 

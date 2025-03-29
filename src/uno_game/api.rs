@@ -1,4 +1,4 @@
-use super::card::{Card, Color};
+use super::card::{Card, CardType, Color};
 use super::{GameSession, SessionManager, UnoGame};
 use axum::{
     extract::{Path, State},
@@ -51,6 +51,8 @@ pub struct CardResponse {
 #[derive(Deserialize)]
 pub struct PlayCardRequest {
     card_index: usize,
+    #[serde(default)]
+    color: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -199,6 +201,41 @@ pub async fn play_card(
     info!("Playing card at index {} in game: {}", req.card_index, id);
     match state.session_manager.load_session(&id) {
         Ok(mut session) => {
+            // Check if the card being played is a Wild or Wild Draw Four
+            let card = session.game.players[session.game.current_turn]
+                .hand
+                .get(req.card_index);
+            let requires_color = card.map_or(false, |c| {
+                matches!(c.card_type, CardType::Wild | CardType::WildDrawFour)
+            });
+
+            // If it's a Wild card, require a color
+            if requires_color {
+                if let Some(color_str) = &req.color {
+                    let color = match color_str.to_lowercase().as_str() {
+                        "red" => Color::Red,
+                        "green" => Color::Green,
+                        "blue" => Color::Blue,
+                        "yellow" => Color::Yellow,
+                        _ => {
+                            info!("Invalid color {} in game: {}", color_str, id);
+                            return (StatusCode::BAD_REQUEST, "Invalid color".to_string())
+                                .into_response();
+                        }
+                    };
+                    // Set the color of the Wild card before playing it
+                    session.game.players[session.game.current_turn].hand[req.card_index].color =
+                        color;
+                } else {
+                    info!("Color required for Wild card in game: {}", id);
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        "Color required for Wild card".to_string(),
+                    )
+                        .into_response();
+                }
+            }
+
             match session
                 .game
                 .play_card(session.game.current_turn, req.card_index)
@@ -530,15 +567,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_play_card() {
-        let (app, temp_dir) = setup_test_app().await;
-
-        // Clean up any existing game state
-        let session_manager = SessionManager::new(temp_dir.path().to_path_buf()).unwrap();
-        if let Ok(sessions) = session_manager.list_sessions() {
-            for id in sessions {
-                let _ = session_manager.delete_session(&id);
-            }
-        }
+        let (app, _temp_dir) = setup_test_app().await;
 
         // First create a game
         let create_request = Request::builder()
@@ -559,7 +588,7 @@ mod tests {
             .unwrap();
         let game: GameResponse = serde_json::from_slice(&body).unwrap();
 
-        // Get the initial game state
+        // Get the current game state
         let get_request = Request::builder()
             .method("GET")
             .uri(format!("/games/{}", game.id))
@@ -594,7 +623,26 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK);
         }
 
-        // Draw cards until we have a playable card
+        // First try to play a card from the player's hand
+        let play_request = Request::builder()
+            .method("POST")
+            .uri(format!("/games/{}/play", game.id))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                json!({
+                    "card_index": 0
+                })
+                .to_string(),
+            ))
+            .unwrap();
+
+        let response = app.clone().oneshot(play_request).await.unwrap();
+        if response.status() == StatusCode::OK {
+            // Successfully played a card from hand
+            return;
+        }
+
+        // If we couldn't play from hand, try drawing cards until we find a playable one
         let mut attempts = 0;
         let max_attempts = 5; // Limit the number of attempts to avoid infinite loops
         while attempts < max_attempts {
