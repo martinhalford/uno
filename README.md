@@ -137,6 +137,8 @@ Response:
 }
 ```
 
+Note: When playing a Wild or Wild Draw Four card, you must specify the next color in the same request. The color field is ignored for all other card types.
+
 ### Draw a Card
 
 ```http
@@ -154,17 +156,6 @@ Response:
       "card_type": "Number(3)"
     }
   }
-}
-```
-
-### Choose Color (for Wild cards)
-
-```http
-POST /games/{id}/color
-Content-Type: application/json
-
-{
-    "color": "red"  // One of: "red", "green", "blue", "yellow"
 }
 ```
 
