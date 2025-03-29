@@ -57,6 +57,23 @@ pub struct ChooseColorRequest {
     color: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct GameStateResponse {
+    id: String,
+    current_turn: usize,
+    direction: String,
+    players: Vec<PlayerStateResponse>,
+    discard_pile: Vec<CardResponse>,
+    deck_cards_remaining: usize,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PlayerStateResponse {
+    id: usize,
+    name: String,
+    hand: Vec<CardResponse>,
+}
+
 pub async fn create_game(
     State(state): State<AppState>,
     Json(req): Json<CreateGameRequest>,
@@ -101,6 +118,24 @@ pub async fn get_game(State(state): State<AppState>, Path(id): Path<String>) -> 
         Ok(session) => {
             info!("Found game: {}", id);
             let response = GameResponse::from_session(&session);
+            Json(response).into_response()
+        }
+        Err(e) => {
+            info!("Game not found: {}", id);
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
+    }
+}
+
+pub async fn get_game_state(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    info!("Getting game state for game ID: {}", id);
+    match state.session_manager.load_session(&id) {
+        Ok(session) => {
+            info!("Found game state: {}", id);
+            let response = GameStateResponse::from_session(&session);
             Json(response).into_response()
         }
         Err(e) => {
@@ -260,6 +295,33 @@ impl CardResponse {
     }
 }
 
+impl GameStateResponse {
+    fn from_session(session: &GameSession) -> Self {
+        Self {
+            id: session.id.clone(),
+            current_turn: session.game.current_turn,
+            direction: format!("{:?}", session.game.direction),
+            players: session
+                .game
+                .players
+                .iter()
+                .map(|p| PlayerStateResponse {
+                    id: p.id,
+                    name: p.name.clone(),
+                    hand: p.hand.iter().map(CardResponse::from_card).collect(),
+                })
+                .collect(),
+            discard_pile: session
+                .game
+                .discard_pile
+                .iter()
+                .map(CardResponse::from_card)
+                .collect(),
+            deck_cards_remaining: session.game.deck.len(),
+        }
+    }
+}
+
 pub async fn start_api_server(sessions_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
@@ -279,6 +341,7 @@ pub async fn start_api_server(sessions_dir: PathBuf) -> Result<(), Box<dyn std::
         .route("/games", post(create_game))
         .route("/games", get(list_games))
         .route("/games/{id}", get(get_game))
+        .route("/games/{id}/state", get(get_game_state))
         .route("/games/{id}", delete(delete_game))
         .route("/games/{id}/play", post(play_card))
         .route("/games/{id}/draw", post(draw_card))
@@ -320,6 +383,7 @@ mod tests {
             .route("/games", post(create_game))
             .route("/games", get(list_games))
             .route("/games/{id}", get(get_game))
+            .route("/games/{id}/state", get(get_game_state))
             .route("/games/{id}", delete(delete_game))
             .route("/games/{id}/play", post(play_card))
             .route("/games/{id}/draw", post(draw_card))
@@ -697,5 +761,54 @@ mod tests {
 
         let response = app.oneshot(color_request).await.unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_get_game_state() {
+        let (app, _temp_dir) = setup_test_app().await;
+
+        // First create a game
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/games")
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                json!({
+                    "player_names": ["Alice", "Bob"]
+                })
+                .to_string(),
+            ))
+            .unwrap();
+
+        let create_response = app.clone().oneshot(create_request).await.unwrap();
+        let body = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let game: GameResponse = serde_json::from_slice(&body).unwrap();
+
+        // Then get the game state
+        let get_request = Request::builder()
+            .method("GET")
+            .uri(format!("/games/{}/state", game.id))
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(get_request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let game_state: GameStateResponse = serde_json::from_slice(&body).unwrap();
+
+        // Verify the game state
+        assert_eq!(game_state.id, game.id);
+        assert_eq!(game_state.current_turn, 0);
+        assert_eq!(game_state.direction, "Clockwise");
+        assert_eq!(game_state.players.len(), 2);
+        assert_eq!(game_state.players[0].name, "Alice");
+        assert_eq!(game_state.players[1].name, "Bob");
+        assert_eq!(game_state.players[0].hand.len(), 7); // Each player starts with 7 cards
+        assert_eq!(game_state.players[1].hand.len(), 7);
+        assert_eq!(game_state.discard_pile.len(), 1); // One card in discard pile at start
+        assert!(game_state.deck_cards_remaining > 0);
     }
 }
