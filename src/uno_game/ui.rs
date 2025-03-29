@@ -56,6 +56,16 @@ impl ConsoleUI {
         )
         .unwrap();
         writeln!(self.output, "Deck Cards Remaining: {}", game.deck.len()).unwrap();
+
+        // Show pending draws if any
+        if game.pending_draws > 0 {
+            writeln!(
+                self.output,
+                "⚠️  Current player must draw {} cards!",
+                game.pending_draws
+            )
+            .unwrap();
+        }
     }
 
     pub fn display_player_hand(&mut self, player_name: &str, hand: &[Card]) {

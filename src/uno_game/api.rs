@@ -32,6 +32,7 @@ pub struct GameResponse {
     players: Vec<PlayerResponse>,
     discard_pile_top: CardResponse,
     deck_cards_remaining: usize,
+    pending_draws: usize,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -63,15 +64,16 @@ pub struct GameStateResponse {
     current_turn: usize,
     direction: String,
     players: Vec<PlayerStateResponse>,
-    discard_pile: Vec<CardResponse>,
+    discard_pile_top: CardResponse,
     deck_cards_remaining: usize,
+    pending_draws: usize,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct PlayerStateResponse {
     id: usize,
     name: String,
-    hand: Vec<CardResponse>,
+    hand: Vec<(usize, CardResponse)>,
 }
 
 pub async fn create_game(
@@ -282,6 +284,7 @@ impl GameResponse {
                 .collect(),
             discard_pile_top: CardResponse::from_card(session.game.discard_pile.last().unwrap()),
             deck_cards_remaining: session.game.deck.len(),
+            pending_draws: session.game.pending_draws,
         }
     }
 }
@@ -308,16 +311,17 @@ impl GameStateResponse {
                 .map(|p| PlayerStateResponse {
                     id: p.id,
                     name: p.name.clone(),
-                    hand: p.hand.iter().map(CardResponse::from_card).collect(),
+                    hand: p
+                        .hand
+                        .iter()
+                        .enumerate()
+                        .map(|(i, card)| (i, CardResponse::from_card(card)))
+                        .collect(),
                 })
                 .collect(),
-            discard_pile: session
-                .game
-                .discard_pile
-                .iter()
-                .map(CardResponse::from_card)
-                .collect(),
+            discard_pile_top: CardResponse::from_card(session.game.discard_pile.last().unwrap()),
             deck_cards_remaining: session.game.deck.len(),
+            pending_draws: session.game.pending_draws,
         }
     }
 }
@@ -808,7 +812,11 @@ mod tests {
         assert_eq!(game_state.players[1].name, "Bob");
         assert_eq!(game_state.players[0].hand.len(), 7); // Each player starts with 7 cards
         assert_eq!(game_state.players[1].hand.len(), 7);
-        assert_eq!(game_state.discard_pile.len(), 1); // One card in discard pile at start
+
+        // Verify the top card has valid properties
+        assert!(!game_state.discard_pile_top.color.is_empty());
+        assert!(!game_state.discard_pile_top.card_type.is_empty());
+
         assert!(game_state.deck_cards_remaining > 0);
     }
 }

@@ -10,6 +10,7 @@ pub struct UnoGame {
     pub discard_pile: Vec<Card>,
     pub current_turn: usize,
     pub direction: Direction,
+    pub pending_draws: usize, // Number of cards the current player must draw
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -113,6 +114,7 @@ impl UnoGame {
             discard_pile,
             current_turn: 0,
             direction: Direction::Clockwise,
+            pending_draws: 0,
         })
     }
 
@@ -222,11 +224,10 @@ impl UnoGame {
         player_id: usize,
         card_index: usize,
     ) -> Result<GameEvent, GameError> {
-        // #[cfg(debug_assertions)]
-        // eprintln!(
-        //     "[DEBUG] Player {}'s hand before playing: {:?}",
-        //     self.players[player_id].name, self.players[player_id].hand
-        // );
+        // Check if the player has pending draws
+        if self.pending_draws > 0 {
+            return Err(GameError::InvalidMove);
+        }
 
         // Check if the card index is valid
         if card_index >= self.players[player_id].hand.len() {
@@ -235,13 +236,6 @@ impl UnoGame {
 
         // Remove the card from the player's hand
         let card = self.players[player_id].hand.remove(card_index);
-
-        // Debug output: Print the card being played
-        // #[cfg(debug_assertions)]
-        // eprintln!(
-        //     "[DEBUG] Player {} is playing: {:?}",
-        //     self.players[player_id].name, card
-        // );
 
         // Check if the card can be played
         let top_card = self.discard_pile.last().unwrap();
@@ -255,13 +249,6 @@ impl UnoGame {
         // Add the card to the discard pile
         self.discard_pile.push(card.clone());
 
-        // Debug output: Print the discard pile after playing the card
-        // #[cfg(debug_assertions)]
-        // eprintln!(
-        //     "[DEBUG] Discard pile after playing: {:?}",
-        //     self.discard_pile
-        // );
-
         // Handle special cards
         let event = self.handle_special_card(player_id, &card)?;
 
@@ -271,6 +258,34 @@ impl UnoGame {
         }
 
         Ok(event)
+    }
+
+    /// Handles drawing a card.
+    pub fn draw_card(&mut self, player_id: usize) -> Result<GameEvent, GameError> {
+        let player = &mut self.players[player_id];
+
+        // If there are pending draws, draw those cards
+        if self.pending_draws > 0 {
+            let mut cards = Vec::new();
+            for _ in 0..self.pending_draws {
+                if let Some(card) = self.deck.pop() {
+                    player.hand.push(card.clone());
+                    cards.push(card);
+                } else {
+                    return Err(GameError::EmptyDeck);
+                }
+            }
+            self.pending_draws = 0;
+            return Ok(GameEvent::DrawTwo { player_id, cards });
+        }
+
+        // Normal draw
+        if let Some(card) = self.deck.pop() {
+            player.hand.push(card.clone());
+            Ok(GameEvent::CardDrawn { player_id, card })
+        } else {
+            Err(GameError::EmptyDeck)
+        }
     }
 
     /// Handles special card effects.
@@ -291,18 +306,12 @@ impl UnoGame {
                 Ok(GameEvent::Reverse)
             }
             CardType::DrawTwo => {
-                // Force the next player to draw two cards
-                let next_player = (self.current_turn + 1) % self.players.len();
-                let mut cards = Vec::new();
-                for _ in 0..2 {
-                    if let Some(card) = self.deck.pop() {
-                        self.players[next_player].hand.push(card.clone());
-                        cards.push(card);
-                    }
-                }
+                // Set pending draws for the next player
+                self.next_turn();
+                self.pending_draws = 2;
                 Ok(GameEvent::DrawTwo {
-                    player_id: next_player,
-                    cards,
+                    player_id: self.current_turn,
+                    cards: Vec::new(), // Cards will be drawn when the player draws
                 })
             }
             CardType::Wild => {
@@ -312,20 +321,13 @@ impl UnoGame {
                 })
             }
             CardType::WildDrawFour => {
-                // Force the next player to draw four cards
-                let next_player = (self.current_turn + 1) % self.players.len();
-                let mut cards = Vec::new();
-                for _ in 0..4 {
-                    if let Some(card) = self.deck.pop() {
-                        self.players[next_player].hand.push(card.clone());
-                        cards.push(card);
-                    }
-                }
-                // Allow the current player to choose a color
+                // Set pending draws for the next player
+                self.next_turn();
+                self.pending_draws = 4;
                 Ok(GameEvent::WildDrawFour {
                     player_id,
-                    next_player_id: next_player,
-                    cards,
+                    next_player_id: self.current_turn,
+                    cards: Vec::new(), // Cards will be drawn when the player draws
                     color: card.color, // The color is chosen by the player in the CLI
                 })
             }
@@ -333,18 +335,6 @@ impl UnoGame {
                 player_id,
                 card: card.clone(),
             }),
-        }
-    }
-
-    /// Handles drawing a card.
-    pub fn draw_card(&mut self, player_id: usize) -> Result<GameEvent, GameError> {
-        let player = &mut self.players[player_id];
-
-        if let Some(card) = self.deck.pop() {
-            player.hand.push(card.clone());
-            Ok(GameEvent::CardDrawn { player_id, card })
-        } else {
-            Err(GameError::EmptyDeck)
         }
     }
 }
