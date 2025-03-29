@@ -1,8 +1,6 @@
 use super::card::{Card, CardType, Color};
 use super::player::Player;
 use rand::seq::SliceRandom; // Import the shuffle functionality
-#[allow(deprecated)]
-use rand::thread_rng; // For random number generation
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -21,6 +19,18 @@ pub enum GameError {
     GameAlreadyOver,
     EmptyDeck,
     Other(String),
+}
+
+impl std::fmt::Display for GameError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GameError::InvalidMove => write!(f, "Invalid move"),
+            GameError::CardNotInHand => write!(f, "Card not in hand"),
+            GameError::GameAlreadyOver => write!(f, "Game is already over"),
+            GameError::EmptyDeck => write!(f, "Deck is empty"),
+            GameError::Other(msg) => write!(f, "{}", msg),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -159,7 +169,7 @@ impl UnoGame {
         }
 
         // Shuffle the deck
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
         deck.shuffle(&mut rng);
 
         deck

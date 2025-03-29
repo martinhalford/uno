@@ -1,14 +1,39 @@
-use std::io::{self, Write};
+use clap::Parser;
+use std::io::Write;
 use std::path::PathBuf;
 use uno::uno_game::ui::ConsoleUI;
-use uno::uno_game::{GameEvent, GameSession, SessionManager, UnoGame};
+use uno::uno_game::{start_api_server, GameEvent, GameSession, SessionManager, UnoGame};
 
-fn main() {
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Run in server mode (API only)
+    #[arg(short, long)]
+    server: bool,
+}
+
+#[tokio::main]
+async fn main() {
+    let args = Args::parse();
     let sessions_dir = PathBuf::from("sessions");
     let session_manager =
-        SessionManager::new(sessions_dir).expect("Failed to create session manager");
-    let mut ui = ConsoleUI::new();
+        SessionManager::new(sessions_dir.clone()).expect("Failed to create session manager");
 
+    if args.server {
+        // Run in server mode
+        println!("Starting Uno API server...");
+        if let Err(e) = start_api_server(sessions_dir).await {
+            eprintln!("Failed to start API server: {}", e);
+            std::process::exit(1);
+        }
+    } else {
+        // Run in CLI mode
+        let mut ui = ConsoleUI::new();
+        run_cli(&session_manager, &mut ui);
+    }
+}
+
+fn run_cli(session_manager: &SessionManager, ui: &mut ConsoleUI) {
     loop {
         println!("\nUno Game Session Manager");
         println!("1. Create new game");
@@ -57,7 +82,7 @@ fn main() {
                 match session_manager.load_session(id) {
                     Ok(mut session) => {
                         println!("Loaded game session: {}", session.id);
-                        play_turn(&mut session, &session_manager, &mut ui);
+                        play_turn(&mut session, session_manager, ui);
                     }
                     Err(e) => println!("Failed to load session: {}", e),
                 }
