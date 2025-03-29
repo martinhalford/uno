@@ -34,6 +34,7 @@ impl GameSession {
     }
 }
 
+#[derive(Clone)]
 pub struct SessionManager {
     pub sessions_dir: PathBuf,
 }

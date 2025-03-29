@@ -1,6 +1,5 @@
-use super::card::{Card, CardType, Color};
+use super::card::{Card, Color};
 use super::game::{GameEvent, UnoGame};
-use super::player::Player;
 use std::io::{self, BufRead, BufReader, Write};
 
 pub struct ConsoleUI {
@@ -192,6 +191,8 @@ impl ConsoleUI {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::uno_game::card::CardType;
+    use crate::uno_game::player::Player;
     use std::io::Cursor;
 
     fn create_test_ui() -> ConsoleUI {
