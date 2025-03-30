@@ -13,7 +13,7 @@ pub enum GameStatus {
 pub struct UnoGame {
     pub players: Vec<Player>,
     pub deck: Vec<Card>,
-    pub discard_pile: Vec<Card>,
+    pub discard_pile: Vec<(Card, usize)>, // (Card, player_id) tuples
     pub current_turn: usize,
     pub direction: Direction,
     pub pending_draws: usize, // Number of cards the current player must draw
@@ -45,6 +45,7 @@ impl std::fmt::Display for GameError {
 pub enum GameEvent {
     CardPlayed {
         player_id: usize,
+        player_name: String,
         card: Card,
     },
     CardDrawn {
@@ -113,7 +114,7 @@ impl UnoGame {
 
         // Initialize the discard pile
         let top_card = deck.pop().ok_or(GameError::EmptyDeck)?;
-        let discard_pile = vec![top_card];
+        let discard_pile = vec![(top_card, usize::MAX)]; // Use usize::MAX to indicate no player played this card
 
         Ok(Self {
             players,
@@ -132,50 +133,26 @@ impl UnoGame {
         // Create standard cards
         for &color in &[Color::Red, Color::Green, Color::Blue, Color::Yellow] {
             // Add one copy of the 0 card
-            deck.push(Card {
-                color: color.clone(),
-                card_type: CardType::Number(0),
-            });
+            deck.push(Card::new(color.clone(), CardType::Number(0)));
 
             // Add two copies of each numbered card (1–9)
             for number in 1..=9 {
-                deck.push(Card {
-                    color: color.clone(),
-                    card_type: CardType::Number(number),
-                });
-                deck.push(Card {
-                    color: color.clone(),
-                    card_type: CardType::Number(number),
-                });
+                deck.push(Card::new(color.clone(), CardType::Number(number)));
+                deck.push(Card::new(color.clone(), CardType::Number(number)));
             }
 
             // Add Skip, Reverse, and Draw Two (two copies each)
             for _ in 0..2 {
-                deck.push(Card {
-                    color: color.clone(),
-                    card_type: CardType::Skip,
-                });
-                deck.push(Card {
-                    color: color.clone(),
-                    card_type: CardType::Reverse,
-                });
-                deck.push(Card {
-                    color: color.clone(),
-                    card_type: CardType::DrawTwo,
-                });
+                deck.push(Card::new(color.clone(), CardType::Skip));
+                deck.push(Card::new(color.clone(), CardType::Reverse));
+                deck.push(Card::new(color.clone(), CardType::DrawTwo));
             }
         }
 
         // Add Wild and Wild Draw Four cards
         for _ in 0..4 {
-            deck.push(Card {
-                color: Color::Wild,
-                card_type: CardType::Wild,
-            });
-            deck.push(Card {
-                color: Color::Wild,
-                card_type: CardType::WildDrawFour,
-            });
+            deck.push(Card::new(Color::Wild, CardType::Wild));
+            deck.push(Card::new(Color::Wild, CardType::WildDrawFour));
         }
 
         // Shuffle the deck
@@ -230,53 +207,92 @@ impl UnoGame {
     }
 
     /// Handles playing a card.
-    pub fn play_card(
-        &mut self,
-        player_id: usize,
-        card_index: usize,
-    ) -> Result<GameEvent, GameError> {
-        // Check if the game is already complete
+    pub fn play_card(&mut self, player_id: usize, card_index: usize) -> Result<GameEvent, String> {
         if matches!(self.status, GameStatus::Complete { .. }) {
-            return Err(GameError::GameAlreadyOver);
+            return Err("Game is already over".to_string());
         }
 
-        // Check if the player has pending draws
-        if self.pending_draws > 0 {
-            return Err(GameError::InvalidMove);
+        if player_id != self.current_turn {
+            return Err("Not your turn".to_string());
         }
 
-        // Check if the card index is valid
-        if card_index >= self.players[player_id].hand.len() {
-            return Err(GameError::CardNotInHand);
+        let player = &mut self.players[player_id];
+        if card_index >= player.hand.len() {
+            return Err("Invalid card index".to_string());
         }
 
-        // Remove the card from the player's hand
-        let card = self.players[player_id].hand.remove(card_index);
+        let card = player.hand.remove(card_index);
+        let card_type = card.card_type.clone();
+        let player_name = player.name.clone();
+        let is_hand_empty = player.hand.is_empty();
 
-        // Check if the card can be played
-        let top_card = self.discard_pile.last().unwrap();
+        // Add card to discard pile
+        self.discard_pile.push((card.clone(), player_id));
 
-        if !UnoGame::can_play_card(&card, top_card) {
-            // If the card cannot be played, return it to the player's hand
-            self.players[player_id].hand.push(card);
-            return Err(GameError::InvalidMove);
-        }
-
-        // Add the card to the discard pile
-        self.discard_pile.push(card.clone());
-
-        // Handle special cards
-        let event = self.handle_special_card(player_id, &card)?;
-
-        // Check if the player has won
-        if self.players[player_id].hand.is_empty() {
+        // Check if player has won
+        if is_hand_empty {
             self.status = GameStatus::Complete {
                 winner_id: player_id,
             };
             return Ok(GameEvent::PlayerWins { player_id });
         }
 
-        Ok(event)
+        // Handle special card effects
+        match card_type {
+            CardType::Skip => {
+                // Skip the next player
+                self.next_turn();
+                // Move to the player after the skipped one
+                self.next_turn();
+                Ok(GameEvent::CardPlayed {
+                    player_id,
+                    player_name,
+                    card,
+                })
+            }
+            CardType::Reverse => {
+                // Reverse the direction first
+                self.reverse_direction();
+                // Then move to the next player in the new direction
+                self.next_turn();
+                Ok(GameEvent::CardPlayed {
+                    player_id,
+                    player_name,
+                    card,
+                })
+            }
+            CardType::DrawTwo => {
+                // Set pending draws first
+                self.pending_draws = 2;
+                // Then move to the next player who must draw
+                self.next_turn();
+                Ok(GameEvent::CardPlayed {
+                    player_id,
+                    player_name,
+                    card,
+                })
+            }
+            CardType::WildDrawFour => {
+                // Set pending draws first
+                self.pending_draws = 4;
+                // Then move to the next player who must draw
+                self.next_turn();
+                Ok(GameEvent::CardPlayed {
+                    player_id,
+                    player_name,
+                    card,
+                })
+            }
+            _ => {
+                // Normal card - just move to the next player
+                self.next_turn();
+                Ok(GameEvent::CardPlayed {
+                    player_id,
+                    player_name,
+                    card,
+                })
+            }
+        }
     }
 
     /// Handles drawing a card.
@@ -295,65 +311,17 @@ impl UnoGame {
                 }
             }
             self.pending_draws = 0;
+            self.next_turn();
             return Ok(GameEvent::DrawTwo { player_id, cards });
         }
 
         // Normal draw
         if let Some(card) = self.deck.pop() {
             player.hand.push(card.clone());
+            self.next_turn();
             Ok(GameEvent::CardDrawn { player_id, card })
         } else {
             Err(GameError::EmptyDeck)
-        }
-    }
-
-    /// Handles special card effects.
-    fn handle_special_card(
-        &mut self,
-        player_id: usize,
-        card: &Card,
-    ) -> Result<GameEvent, GameError> {
-        match card.card_type {
-            CardType::Skip => {
-                self.next_turn(); // Skip the next player
-                Ok(GameEvent::Skip {
-                    player_id: (self.current_turn + 1) % self.players.len(),
-                })
-            }
-            CardType::Reverse => {
-                self.reverse_direction();
-                Ok(GameEvent::Reverse)
-            }
-            CardType::DrawTwo => {
-                // Set pending draws for the next player
-                self.next_turn();
-                self.pending_draws = 2;
-                Ok(GameEvent::DrawTwo {
-                    player_id: self.current_turn,
-                    cards: Vec::new(), // Cards will be drawn when the player draws
-                })
-            }
-            CardType::Wild => {
-                Ok(GameEvent::WildColorChosen {
-                    player_id,
-                    color: card.color, // The color is chosen by the player in the CLI
-                })
-            }
-            CardType::WildDrawFour => {
-                // Set pending draws for the next player
-                self.next_turn();
-                self.pending_draws = 4;
-                Ok(GameEvent::WildDrawFour {
-                    player_id,
-                    next_player_id: self.current_turn,
-                    cards: Vec::new(), // Cards will be drawn when the player draws
-                    color: card.color, // The color is chosen by the player in the CLI
-                })
-            }
-            _ => Ok(GameEvent::CardPlayed {
-                player_id,
-                card: card.clone(),
-            }),
         }
     }
 }
@@ -396,7 +364,7 @@ mod tests {
         let mut game = UnoGame::new(player_names).unwrap();
 
         // Get the top card of the discard pile
-        let top_card = game.discard_pile.last().unwrap();
+        let top_card = &game.discard_pile.last().unwrap().0;
 
         // Find a matching card in Alice's hand
         let matching_card_index = game.players[0]
@@ -414,7 +382,7 @@ mod tests {
 
         // Check that the card was moved to the discard pile
         assert_eq!(
-            game.discard_pile.last().unwrap().card_type,
+            game.discard_pile.last().unwrap().0.card_type,
             card_to_play.card_type
         );
     }
@@ -509,18 +477,9 @@ mod tests {
 
     #[test]
     fn test_can_play_card() {
-        let red_card = Card {
-            color: Color::Red,
-            card_type: CardType::Number(1),
-        };
-        let blue_card = Card {
-            color: Color::Blue,
-            card_type: CardType::Number(1),
-        };
-        let wild_card = Card {
-            color: Color::Wild,
-            card_type: CardType::Wild,
-        };
+        let red_card = Card::new(Color::Red, CardType::Number(1));
+        let blue_card = Card::new(Color::Blue, CardType::Number(1));
+        let wild_card = Card::new(Color::Wild, CardType::Wild);
 
         // Same color
         assert!(UnoGame::can_play_card(&red_card, &red_card));
@@ -530,5 +489,173 @@ mod tests {
         assert!(UnoGame::can_play_card(&wild_card, &red_card));
         // Regular card on wild
         assert!(UnoGame::can_play_card(&red_card, &wild_card));
+    }
+
+    #[test]
+    fn test_wild_draw_four_turn_progression() {
+        let player_names = vec!["Martin".to_string(), "Tanya".to_string()];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        // Set up the game state to match the current scenario
+        game.current_turn = 1; // Tanya's turn
+        game.direction = Direction::Clockwise;
+
+        // Add a WildDrawFour card to Tanya's hand
+        let wild_draw_four = Card::new(Color::Wild, CardType::WildDrawFour);
+        game.players[1].hand.push(wild_draw_four);
+
+        // Play the WildDrawFour card
+        let result = game.play_card(1, 0);
+        assert!(result.is_ok());
+
+        // Verify that the turn moved to Martin (player 0)
+        assert_eq!(game.current_turn, 0);
+        assert_eq!(game.pending_draws, 4);
+    }
+
+    #[test]
+    fn test_skip_turn_progression() {
+        let player_names = vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Charlie".to_string(),
+        ];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        // Set up the game state
+        game.current_turn = 0; // Alice's turn
+        game.direction = Direction::Clockwise;
+
+        // Add a Skip card to Alice's hand
+        let skip_card = Card::new(Color::Red, CardType::Skip);
+        game.players[0].hand.push(skip_card);
+
+        // Play the Skip card
+        let result = game.play_card(0, 0);
+        assert!(result.is_ok());
+
+        // Verify that the turn moved to Charlie (skipping Bob)
+        assert_eq!(game.current_turn, 2);
+    }
+
+    #[test]
+    fn test_reverse_turn_progression() {
+        let player_names = vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Charlie".to_string(),
+        ];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        // Set up the game state
+        game.current_turn = 1; // Bob's turn
+        game.direction = Direction::Clockwise;
+
+        // Add a Reverse card to Bob's hand
+        let reverse_card = Card::new(Color::Blue, CardType::Reverse);
+        game.players[1].hand.push(reverse_card);
+
+        // Play the Reverse card
+        let result = game.play_card(1, 0);
+        assert!(result.is_ok());
+
+        // Verify that the direction is reversed and turn moved to Alice
+        assert_eq!(game.direction, Direction::CounterClockwise);
+        assert_eq!(game.current_turn, 0);
+    }
+
+    #[test]
+    fn test_draw_two_turn_progression() {
+        let player_names = vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Charlie".to_string(),
+        ];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        // Set up the game state
+        game.current_turn = 0; // Alice's turn
+        game.direction = Direction::Clockwise;
+
+        // Add a Draw Two card to Alice's hand
+        let draw_two_card = Card::new(Color::Green, CardType::DrawTwo);
+        game.players[0].hand.push(draw_two_card);
+
+        // Play the Draw Two card
+        let result = game.play_card(0, 0);
+        assert!(result.is_ok());
+
+        // Verify that Bob has pending draws and it's their turn
+        assert_eq!(game.pending_draws, 2);
+        assert_eq!(game.current_turn, 1);
+    }
+
+    #[test]
+    fn test_normal_card_turn_progression() {
+        let player_names = vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Charlie".to_string(),
+        ];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        // Set up the game state
+        game.current_turn = 0; // Alice's turn
+        game.direction = Direction::Clockwise;
+
+        // Add a normal card to Alice's hand
+        let normal_card = Card::new(Color::Red, CardType::Number(5));
+        game.players[0].hand.push(normal_card);
+
+        // Play the normal card
+        let result = game.play_card(0, 0);
+        assert!(result.is_ok());
+
+        // Verify that the turn moved to Bob
+        assert_eq!(game.current_turn, 1);
+    }
+
+    #[test]
+    fn test_draw_card_turn_progression() {
+        let player_names = vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Charlie".to_string(),
+        ];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        // Set up the game state
+        game.current_turn = 0; // Alice's turn
+        game.direction = Direction::Clockwise;
+
+        // Draw a card
+        let result = game.draw_card(0);
+        assert!(result.is_ok());
+
+        // Verify that the turn moved to Bob
+        assert_eq!(game.current_turn, 1);
+    }
+
+    #[test]
+    fn test_draw_card_with_pending_draws() {
+        let player_names = vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Charlie".to_string(),
+        ];
+        let mut game = UnoGame::new(player_names).unwrap();
+
+        // Set up the game state
+        game.current_turn = 0; // Alice's turn
+        game.direction = Direction::Clockwise;
+        game.pending_draws = 2; // Alice has pending draws
+
+        // Draw the pending cards
+        let result = game.draw_card(0);
+        assert!(result.is_ok());
+
+        // Verify that the pending draws are cleared and turn moved to Bob
+        assert_eq!(game.pending_draws, 0);
+        assert_eq!(game.current_turn, 1);
     }
 }

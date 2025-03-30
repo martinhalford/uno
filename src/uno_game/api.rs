@@ -49,6 +49,8 @@ pub struct PlayerResponse {
 pub struct CardResponse {
     color: String,
     card_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    player_id: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -175,7 +177,7 @@ pub async fn get_deck(State(state): State<AppState>, Path(id): Path<String>) -> 
                     .game
                     .deck
                     .iter()
-                    .map(CardResponse::from_card)
+                    .map(|card| CardResponse::from_card(card, None))
                     .collect(),
             };
             Json(response).into_response()
@@ -253,7 +255,6 @@ pub async fn play_card(
             {
                 Ok(event) => {
                     info!("Successfully played card in game: {}", id);
-                    session.game.next_turn();
                     if let Err(e) = session.save(&state.session_manager.sessions_dir) {
                         error!("Failed to save game state: {}", e);
                         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
@@ -279,7 +280,6 @@ pub async fn draw_card(State(state): State<AppState>, Path(id): Path<String>) ->
         Ok(mut session) => match session.game.draw_card(session.game.current_turn) {
             Ok(event) => {
                 info!("Successfully drew card in game: {}", id);
-                session.game.next_turn();
                 if let Err(e) = session.save(&state.session_manager.sessions_dir) {
                     error!("Failed to save game state: {}", e);
                     return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
@@ -318,7 +318,7 @@ pub async fn choose_color(
 
     match state.session_manager.load_session(&id) {
         Ok(mut session) => {
-            if let Some(top_card) = session.game.discard_pile.last_mut() {
+            if let Some((top_card, _)) = session.game.discard_pile.last_mut() {
                 top_card.color = color;
                 if let Err(e) = session.save(&state.session_manager.sessions_dir) {
                     error!("Failed to save game state: {}", e);
@@ -368,7 +368,17 @@ impl GameResponse {
                     hand_size: p.hand.len(),
                 })
                 .collect(),
-            discard_pile_top: CardResponse::from_card(session.game.discard_pile.last().unwrap()),
+            discard_pile_top: {
+                let (card, player_id) = session.game.discard_pile.last().unwrap();
+                CardResponse::from_card(
+                    card,
+                    if *player_id == usize::MAX {
+                        None
+                    } else {
+                        Some(*player_id)
+                    },
+                )
+            },
             deck_cards_remaining: session.game.deck.len(),
             pending_draws: session.game.pending_draws,
             status,
@@ -378,10 +388,11 @@ impl GameResponse {
 }
 
 impl CardResponse {
-    fn from_card(card: &Card) -> Self {
+    fn from_card(card: &Card, player_id: Option<usize>) -> Self {
         Self {
             color: format!("{:?}", card.color),
             card_type: format!("{:?}", card.card_type),
+            player_id,
         }
     }
 }
@@ -414,11 +425,21 @@ impl GameStateResponse {
                         .hand
                         .iter()
                         .enumerate()
-                        .map(|(i, card)| (i, CardResponse::from_card(card)))
+                        .map(|(i, card)| (i, CardResponse::from_card(card, None)))
                         .collect(),
                 })
                 .collect(),
-            discard_pile_top: CardResponse::from_card(session.game.discard_pile.last().unwrap()),
+            discard_pile_top: {
+                let (card, player_id) = session.game.discard_pile.last().unwrap();
+                CardResponse::from_card(
+                    card,
+                    if *player_id == usize::MAX {
+                        None
+                    } else {
+                        Some(*player_id)
+                    },
+                )
+            },
             deck_cards_remaining: session.game.deck.len(),
             pending_draws: session.game.pending_draws,
             status,

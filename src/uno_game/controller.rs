@@ -43,8 +43,9 @@ impl GameController {
                                         GameEvent::WildColorChosen { player_id: _, .. }
                                         | GameEvent::WildDrawFour { player_id: _, .. } => {
                                             let color = self.ui.choose_color();
-                                            self.game.discard_pile.last_mut().unwrap().color =
-                                                color;
+                                            let (top_card, _) =
+                                                self.game.discard_pile.last_mut().unwrap();
+                                            top_card.color = color;
                                             self.ui.handle_game_event(&event, &self.game);
                                         }
                                         _ => self.ui.handle_game_event(&event, &self.game),

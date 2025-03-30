@@ -155,13 +155,12 @@ impl ConsoleUI {
 
     pub fn handle_game_event(&mut self, event: &GameEvent, game: &UnoGame) {
         match event {
-            GameEvent::CardPlayed { player_id, card } => {
-                writeln!(
-                    self.output,
-                    "Player {} played {:?}",
-                    game.players[*player_id].name, card
-                )
-                .unwrap();
+            GameEvent::CardPlayed {
+                player_id: _,
+                card,
+                player_name,
+            } => {
+                writeln!(self.output, "Player {} played {:?}", player_name, card).unwrap();
             }
             GameEvent::CardDrawn { player_id, card } => {
                 writeln!(
@@ -300,19 +299,14 @@ mod tests {
         let events = vec![
             GameEvent::CardPlayed {
                 player_id: 0,
-                card: Card {
-                    color: Color::Red,
-                    card_type: CardType::Number(1),
-                },
+                card: Card::new(Color::Red, CardType::Number(1)),
+                player_name: "Alice".to_string(),
             },
             GameEvent::Skip { player_id: 1 },
             GameEvent::Reverse,
             GameEvent::DrawTwo {
                 player_id: 0,
-                cards: vec![Card {
-                    color: Color::Blue,
-                    card_type: CardType::Number(2),
-                }],
+                cards: vec![Card::new(Color::Blue, CardType::Number(2))],
             },
             GameEvent::WildColorChosen {
                 player_id: 0,
@@ -321,10 +315,7 @@ mod tests {
             GameEvent::WildDrawFour {
                 player_id: 0,
                 next_player_id: 1,
-                cards: vec![Card {
-                    color: Color::Wild,
-                    card_type: CardType::WildDrawFour,
-                }],
+                cards: vec![Card::new(Color::Wild, CardType::WildDrawFour)],
                 color: Color::Red,
             },
             GameEvent::PlayerWins { player_id: 0 },
