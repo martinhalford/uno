@@ -221,6 +221,19 @@ impl UnoGame {
             return Err("Invalid card index".to_string());
         }
 
+        // Get the top card of the discard pile
+        let top_card = &self.discard_pile.last().unwrap().0;
+
+        // Get the card to be played
+        let card_to_play = &player.hand[card_index];
+
+        // Validate the play
+        if !UnoGame::can_play_card(card_to_play, top_card) {
+            return Err(
+                "Invalid card play - card must match color or number of top card".to_string(),
+            );
+        }
+
         let card = player.hand.remove(card_index);
         let card_type = card.card_type.clone();
         let player_name = player.name.clone();
