@@ -96,6 +96,11 @@ pub struct WinnerResponse {
     name: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct DiscardPileResponse {
+    cards: Vec<(CardResponse, Option<usize>)>,
+}
+
 pub async fn create_game(
     State(state): State<AppState>,
     Json(req): Json<CreateGameRequest>,
@@ -178,6 +183,40 @@ pub async fn get_deck(State(state): State<AppState>, Path(id): Path<String>) -> 
                     .deck
                     .iter()
                     .map(|card| CardResponse::from_card(card, None))
+                    .collect(),
+            };
+            Json(response).into_response()
+        }
+        Err(e) => {
+            info!("Game not found: {}", id);
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
+    }
+}
+
+pub async fn get_discard_pile(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    info!("Getting discard pile for game ID: {}", id);
+    match state.session_manager.load_session(&id) {
+        Ok(session) => {
+            info!("Found game discard pile: {}", id);
+            let response = DiscardPileResponse {
+                cards: session
+                    .game
+                    .discard_pile
+                    .iter()
+                    .map(|(card, player_id)| {
+                        (
+                            CardResponse::from_card(card, None),
+                            if *player_id == usize::MAX {
+                                None
+                            } else {
+                                Some(*player_id)
+                            },
+                        )
+                    })
                     .collect(),
             };
             Json(response).into_response()
@@ -469,6 +508,7 @@ pub async fn start_api_server(sessions_dir: PathBuf) -> Result<(), Box<dyn std::
         .route("/games/{id}", get(get_game))
         .route("/games/{id}/state", get(get_game_state))
         .route("/games/{id}/deck", get(get_deck))
+        .route("/games/{id}/discard", get(get_discard_pile))
         .route("/games/{id}", delete(delete_game))
         .route("/games/{id}/play", post(play_card))
         .route("/games/{id}/draw", post(draw_card))
@@ -512,6 +552,7 @@ mod tests {
             .route("/games/{id}", get(get_game))
             .route("/games/{id}/state", get(get_game_state))
             .route("/games/{id}/deck", get(get_deck))
+            .route("/games/{id}/discard", get(get_discard_pile))
             .route("/games/{id}", delete(delete_game))
             .route("/games/{id}/play", post(play_card))
             .route("/games/{id}/draw", post(draw_card))
@@ -1003,6 +1044,59 @@ mod tests {
         for card in deck.cards {
             assert!(!card.color.is_empty(), "Card color should not be empty");
             assert!(!card.card_type.is_empty(), "Card type should not be empty");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_discard_pile() {
+        let (app, _temp_dir) = setup_test_app().await;
+
+        // First create a game
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/games")
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                json!({
+                    "player_names": ["Alice", "Bob"]
+                })
+                .to_string(),
+            ))
+            .unwrap();
+
+        let create_response = app.clone().oneshot(create_request).await.unwrap();
+        let body = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let game: GameResponse = serde_json::from_slice(&body).unwrap();
+
+        // Then get the discard pile
+        let get_request = Request::builder()
+            .method("GET")
+            .uri(format!("/games/{}/discard", game.id))
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(get_request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let discard_pile: DiscardPileResponse = serde_json::from_slice(&body).unwrap();
+
+        // Verify the discard pile
+        assert!(
+            !discard_pile.cards.is_empty(),
+            "Discard pile should not be empty"
+        );
+
+        // Verify each card has valid properties
+        for (card, player_id) in discard_pile.cards {
+            assert!(!card.color.is_empty(), "Card color should not be empty");
+            assert!(!card.card_type.is_empty(), "Card type should not be empty");
+            // The first card should have no player_id (it's the initial card)
+            if player_id.is_some() {
+                assert!(player_id.unwrap() < 2, "Player ID should be valid");
+            }
         }
     }
 }
