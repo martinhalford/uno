@@ -1,5 +1,6 @@
 use super::card::{Card, CardType, Color};
-use super::{GameSession, SessionManager, UnoGame};
+use super::game::GameStatus;
+use crate::uno_game::{GameSession, SessionManager, UnoGame};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -33,6 +34,8 @@ pub struct GameResponse {
     discard_pile_top: CardResponse,
     deck_cards_remaining: usize,
     pending_draws: usize,
+    status: String,
+    winner: Option<WinnerResponse>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -69,6 +72,8 @@ pub struct GameStateResponse {
     discard_pile_top: CardResponse,
     deck_cards_remaining: usize,
     pending_draws: usize,
+    status: String,
+    winner: Option<WinnerResponse>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -81,6 +86,12 @@ pub struct PlayerStateResponse {
 #[derive(Serialize, Deserialize)]
 pub struct DeckResponse {
     cards: Vec<CardResponse>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct WinnerResponse {
+    id: usize,
+    name: String,
 }
 
 pub async fn create_game(
@@ -333,6 +344,17 @@ pub async fn choose_color(
 
 impl GameResponse {
     fn from_session(session: &GameSession) -> Self {
+        let (status, winner) = match session.game.status {
+            GameStatus::InProgress => ("In Progress".to_string(), None),
+            GameStatus::Complete { winner_id } => (
+                "Complete".to_string(),
+                Some(WinnerResponse {
+                    id: winner_id,
+                    name: session.game.players[winner_id].name.clone(),
+                }),
+            ),
+        };
+
         Self {
             id: session.id.clone(),
             current_turn: session.game.current_turn,
@@ -349,6 +371,8 @@ impl GameResponse {
             discard_pile_top: CardResponse::from_card(session.game.discard_pile.last().unwrap()),
             deck_cards_remaining: session.game.deck.len(),
             pending_draws: session.game.pending_draws,
+            status,
+            winner,
         }
     }
 }
@@ -364,6 +388,17 @@ impl CardResponse {
 
 impl GameStateResponse {
     fn from_session(session: &GameSession) -> Self {
+        let (status, winner) = match session.game.status {
+            GameStatus::InProgress => ("In Progress".to_string(), None),
+            GameStatus::Complete { winner_id } => (
+                "Complete".to_string(),
+                Some(WinnerResponse {
+                    id: winner_id,
+                    name: session.game.players[winner_id].name.clone(),
+                }),
+            ),
+        };
+
         Self {
             id: session.id.clone(),
             current_turn: session.game.current_turn,
@@ -386,6 +421,8 @@ impl GameStateResponse {
             discard_pile_top: CardResponse::from_card(session.game.discard_pile.last().unwrap()),
             deck_cards_remaining: session.game.deck.len(),
             pending_draws: session.game.pending_draws,
+            status,
+            winner,
         }
     }
 }

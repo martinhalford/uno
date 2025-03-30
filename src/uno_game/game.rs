@@ -4,6 +4,12 @@ use rand::seq::SliceRandom; // Import the shuffle functionality
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub enum GameStatus {
+    InProgress,
+    Complete { winner_id: usize },
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct UnoGame {
     pub players: Vec<Player>,
     pub deck: Vec<Card>,
@@ -11,6 +17,7 @@ pub struct UnoGame {
     pub current_turn: usize,
     pub direction: Direction,
     pub pending_draws: usize, // Number of cards the current player must draw
+    pub status: GameStatus,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -115,6 +122,7 @@ impl UnoGame {
             current_turn: 0,
             direction: Direction::Clockwise,
             pending_draws: 0,
+            status: GameStatus::InProgress,
         })
     }
 
@@ -227,6 +235,11 @@ impl UnoGame {
         player_id: usize,
         card_index: usize,
     ) -> Result<GameEvent, GameError> {
+        // Check if the game is already complete
+        if matches!(self.status, GameStatus::Complete { .. }) {
+            return Err(GameError::GameAlreadyOver);
+        }
+
         // Check if the player has pending draws
         if self.pending_draws > 0 {
             return Err(GameError::InvalidMove);
@@ -257,6 +270,9 @@ impl UnoGame {
 
         // Check if the player has won
         if self.players[player_id].hand.is_empty() {
+            self.status = GameStatus::Complete {
+                winner_id: player_id,
+            };
             return Ok(GameEvent::PlayerWins { player_id });
         }
 
