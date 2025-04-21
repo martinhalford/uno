@@ -229,9 +229,7 @@ impl UnoGame {
 
         // Validate the play
         if !UnoGame::can_play_card(card_to_play, top_card) {
-            return Err(
-                "Invalid card play - card must match color or number of top card".to_string(),
-            );
+            return Err("Card must match color or number of top card".to_string());
         }
 
         let card = player.hand.remove(card_index);
